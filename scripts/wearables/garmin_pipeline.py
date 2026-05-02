@@ -96,6 +96,53 @@ def extract_fitness_age(path: Path) -> pd.DataFrame:
     return df.set_index("date").sort_index()
 
 
+def extract_health_snapshots(path: Path) -> pd.DataFrame:
+    """Parse wellnessActivities.json into a flat DataFrame of Health Snapshot events.
+
+    Each row is one snapshot (~2 min reading), with HR, stress, HRV, SpO2, and respiration.
+    Index is the GMT start timestamp.
+    """
+    with open(path) as f:
+        raw = json.load(f)
+
+    if not raw:
+        return pd.DataFrame()
+
+    rows = []
+    for r in raw:
+        metrics = {m["summaryType"]: m for m in r.get("summaryTypeDataList", [])}
+
+        def get(key, stat):
+            return metrics.get(key, {}).get(stat)
+
+        rows.append({
+            "timestamp_gmt":   r.get("startTimestampGMT"),
+            "timestamp_local": r.get("startTimestampLocal"),
+            "date":            r.get("calendarDate"),
+            "time_of_day":     r.get("snapshotTimeOfDayType"),
+            "activity_name":   r.get("activityName"),
+            "hr_min":          get("HEART_RATE", "minValue"),
+            "hr_max":          get("HEART_RATE", "maxValue"),
+            "hr_avg":          get("HEART_RATE", "avgValue"),
+            "stress_min":      get("STRESS", "minValue"),
+            "stress_max":      get("STRESS", "maxValue"),
+            "stress_avg":      get("STRESS", "avgValue"),
+            "hrv_rmssd":       get("RMSSD_HRV", "avgValue"),
+            "hrv_sdrr":        get("SDRR_HRV", "avgValue"),
+            "spo2_min":        get("SPO2", "minValue"),
+            "spo2_max":        get("SPO2", "maxValue"),
+            "spo2_avg":        get("SPO2", "avgValue"),
+            "resp_min":        get("RESPIRATION", "minValue"),
+            "resp_max":        get("RESPIRATION", "maxValue"),
+            "resp_avg":        get("RESPIRATION", "avgValue"),
+        })
+
+    df = pd.DataFrame(rows)
+    df["timestamp_gmt"] = pd.to_datetime(df["timestamp_gmt"])
+    df["date"] = pd.to_datetime(df["date"])
+    return df.set_index("timestamp_gmt").sort_index()
+
+
 # ── Extract: Minute-level FIT files ─────────────────────────────────────────
 
 def extract_fit_files(fit_zips: list[Path], date_range: tuple = None) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -631,9 +678,14 @@ def run(export_dir: Path, out_dir: Path,
     print(f"  Date range: {date_start:%Y-%m-%d} → {date_end:%Y-%m-%d}\n")
 
     # 2. Extract daily JSON (only files overlapping the date range)
-    daily_df = fa_df = None
+    daily_df = fa_df = snapshots_df = None
     for p in jsons:
         name = p.name.lower()
+        if "wellnessactivities" in name:
+            print(f"  Extracting health snapshots: {p.name}")
+            snapshots_df = extract_health_snapshots(p)
+            if snapshots_df is not None and not snapshots_df.empty:
+                print(f"  → {len(snapshots_df)} snapshots")
         if "udsfile" in name:
             # Try to parse date range from filename: UDSFile_YYYY-MM-DD_YYYY-MM-DD.json
             parts = p.stem.split("_")
@@ -699,6 +751,10 @@ def run(export_dir: Path, out_dir: Path,
     if len(hr_df):
         hr_df.to_csv(out_dir / "garmin_minute_hr.csv")
         print(f"  → garmin_minute_hr.csv")
+
+    if snapshots_df is not None and not snapshots_df.empty:
+        snapshots_df.to_csv(out_dir / "garmin_health_snapshots.csv")
+        print(f"  → garmin_health_snapshots.csv ({len(snapshots_df)} snapshots)")
 
     if sessions_df is not None and len(sessions_df):
         sessions_df.to_csv(out_dir / "session_biometrics.csv", index=False)

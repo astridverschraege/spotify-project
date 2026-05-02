@@ -35,7 +35,6 @@ HEALTH_TYPES = {
 # samplePoint keys we care about
 HR_KEYS = {"DATA_POINT_DYNAMIC_HEARTRATE", "HEARTRATE_RATE"}
 RESTING_HR_KEYS = {"DATA_POINT_REST_HEARTRATE", "DATA_POINT_NEW_REST_HEARTRATE"}
-STRESS_KEYS = {"stressScore"}
 
 
 def _ms_to_datetime(ms):
@@ -99,17 +98,14 @@ def extract_health_detail(json_files: list[Path], date_range=None):
                     except (ValueError, TypeError):
                         pass
 
-                # Stress — value is a JSON string with stressScore
-                elif rec_type == 11:
+                # Stress — value is a JSON string containing "score"
+                elif rec_type == 11 and key == "STRESS_DATA":
                     try:
-                        # value might be the score directly or a JSON blob
-                        if key == "stressScore":
-                            score = int(float(val_str))
-                        else:
-                            continue
+                        payload = json.loads(val_str)
+                        score = int(payload["score"])
                         if 1 <= score <= 99:
                             stress_rows.append({"timestamp": ts, "stress": score})
-                    except (ValueError, TypeError):
+                    except (ValueError, TypeError, KeyError, json.JSONDecodeError):
                         pass
 
     # Build DataFrames

@@ -5,7 +5,20 @@
       "Bash(do echo:*)",
       "Read(//Users/timothydhoe/Code/spotify-project/data/wearables/**)",
       "Bash(done)",
-      "Read(//Users/timothydhoe/**)"
+      "Read(//Users/timothydhoe/**)",
+      "Bash(python -m py_compile scripts/analysis/fit_extractor.py)",
+      "Bash(python -m py_compile scripts/analysis/activity_classifier.py)",
+      "Bash(python -m py_compile scripts/analysis/baselines.py)",
+      "Bash(python -m py_compile scripts/analysis/session_effect.py)",
+      "Bash(python -m py_compile scripts/analysis/pipeline.py)",
+      "Bash(python3 -m py_compile scripts/analysis/fit_extractor.py)",
+      "Bash(python3 -m py_compile scripts/analysis/activity_classifier.py)",
+      "Bash(python3 -m py_compile scripts/analysis/baselines.py)",
+      "Bash(python3 -m py_compile scripts/analysis/session_effect.py)",
+      "Bash(python3 -m py_compile scripts/analysis/pipeline.py)",
+      "Bash(uv run *)",
+      "Bash(python3 -m py_compile scripts/wearables/garmin_pipeline.py)",
+      "Bash(python3 *)"
     ]
   }
 }
