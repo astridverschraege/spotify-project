@@ -1,5 +1,5 @@
 """
-bayesian_recommender.py — Hierarchical Bayesian playlist recommender for Project R.E.M.
+bayesian_recommender.py -- Hierarchical Bayesian playlist recommender for Project R.E.M.
 
 Given a participant's current physiological state, predicts which playlist type
 (Calm / Neutral / Energy) will produce the best mood outcome using partial pooling
@@ -287,7 +287,7 @@ def build_hierarchical_model(data: pd.DataFrame, participant_codes: list[str]):
         mu_alpha = pm.Normal("mu_alpha", mu=0, sigma=5)
         sigma_alpha = pm.HalfNormal("sigma_alpha", sigma=2)
 
-        # Group-level playlist effects — one per playlist type
+        # Group-level playlist effects -- one per playlist type
         mu_playlist = pm.Normal("mu_playlist", mu=0, sigma=5, shape=n_playlists)
         sigma_playlist = pm.HalfNormal("sigma_playlist", sigma=2)
 
@@ -305,7 +305,7 @@ def build_hierarchical_model(data: pd.DataFrame, participant_codes: list[str]):
             mu_playlist + sigma_playlist * beta_playlist_offset,
         )
 
-        # Biometric coefficients — shared across participants (small sample)
+        # Biometric coefficients -- shared across participants (small sample)
         # These only affect participants with biometric data (via bio_mask)
         beta_stress = pm.Normal("beta_stress", mu=0, sigma=2)
         beta_bb = pm.Normal("beta_bb", mu=0, sigma=2)
@@ -333,14 +333,24 @@ def build_hierarchical_model(data: pd.DataFrame, participant_codes: list[str]):
 
 
 def fit_model(model, draws=2000, tune=1000, chains=4, target_accept=0.9):
-    """Run NUTS sampler and return the trace."""
+    """Run NUTS sampler via NumPyro/JAX (fast) with PyMC fallback."""
+    import pymc.sampling.jax as pmjax
+
     with model:
-        trace = pm.sample(
-            draws=draws, tune=tune, chains=chains,
-            target_accept=target_accept,
-            return_inferencedata=True,
-            random_seed=42,
-        )
+        try:
+            trace = pmjax.sample_numpyro_nuts(
+                draws=draws, tune=tune, chains=chains,
+                target_accept=target_accept,
+                random_seed=42,
+            )
+        except Exception as e:
+            print(f"  JAX sampling failed ({e}), falling back to PyMC NUTS...")
+            trace = pm.sample(
+                draws=draws, tune=tune, chains=chains,
+                target_accept=target_accept,
+                return_inferencedata=True,
+                random_seed=42,
+            )
     return trace
 
 
@@ -455,7 +465,7 @@ def recommend_playlist(
     if uncertain:
         recommendation = (
             f"{best} ({prob_best:.0%} probability of highest mood improvement) "
-            f"— but credible intervals overlap substantially; more data needed to personalise"
+            f"-- but credible intervals overlap substantially; more data needed to personalise"
         )
     else:
         recommendation = f"{best} ({prob_best:.0%} probability of highest mood improvement)"
@@ -501,18 +511,18 @@ def plot_posterior_panels(trace, model, participant_id: str, out_path: Path | No
         ax.legend(fontsize=9)
 
     axes[0].set_ylabel("Density")
-    fig.suptitle(f"Posterior mood improvement — {participant_id}", fontsize=14, y=1.02)
+    fig.suptitle(f"Posterior mood improvement -- {participant_id}", fontsize=14, y=1.02)
     plt.tight_layout()
 
     if out_path:
         fig.savefig(out_path, dpi=150, bbox_inches="tight")
-        print(f"  → {out_path}")
+        print(f"  -> {out_path}")
     plt.close(fig)
     return fig
 
 
 def export_streamlit_json(trace, model, out_path: Path):
-    """Export per-participant × playlist posterior summaries as JSON for Streamlit."""
+    """Export per-participant x playlist posterior summaries as JSON for Streamlit."""
     codes = model._participant_codes
     result = {}
 
@@ -533,7 +543,7 @@ def export_streamlit_json(trace, model, out_path: Path):
 
     with open(out_path, "w") as f:
         json.dump(result, f, indent=2)
-    print(f"  → {out_path}")
+    print(f"  -> {out_path}")
     return result
 
 
@@ -543,13 +553,15 @@ def main():
     parser = argparse.ArgumentParser(description="Hierarchical Bayesian playlist recommender")
     parser.add_argument("--participants", nargs="+", default=None,
                         help="Participants with biometric data (default: auto-detect)")
-    parser.add_argument("--draws", type=int, default=2000)
-    parser.add_argument("--tune", type=int, default=1000)
+    parser.add_argument("--draws", type=int, default=1000)
+    parser.add_argument("--tune", type=int, default=500)
     parser.add_argument("--chains", type=int, default=4)
+    parser.add_argument("--reuse-trace", action="store_true",
+                        help="Load existing trace.nc instead of re-sampling")
     args = parser.parse_args()
 
     print("=" * 60)
-    print("  Bayesian Playlist Recommender — Project R.E.M.")
+    print("  Bayesian Playlist Recommender -- Project R.E.M.")
     print("=" * 60)
 
     # Auto-detect participants with processed wearable data
@@ -581,22 +593,29 @@ def main():
             print(f"    {playlist:8s}: n={len(subset):2d}, mean={subset['mood_delta'].mean():+.1f}, "
                   f"range=[{subset['mood_delta'].min():+.0f}, {subset['mood_delta'].max():+.0f}]")
 
-    # Build and fit model
+    # Output directory
+    out_dir = DATA_ROOT / "analysis" / "bayesian_recommender"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    trace_path = out_dir / "trace.nc"
+
+    # Build model
     print(f"\n  Building hierarchical model...")
     model = build_hierarchical_model(data, participant_codes)
-    print(f"  Sampling ({args.chains} chains × {args.draws} draws, {args.tune} warmup)...")
-    trace = fit_model(model, draws=args.draws, tune=args.tune, chains=args.chains)
+
+    # Sample or reuse existing trace
+    if args.reuse_trace and trace_path.exists():
+        print(f"  Loading existing trace from {trace_path}...")
+        trace = az.from_netcdf(str(trace_path))
+    else:
+        print(f"  Sampling ({args.chains} chains x {args.draws} draws, {args.tune} warmup)...")
+        trace = fit_model(model, draws=args.draws, tune=args.tune, chains=args.chains)
 
     # Convergence
     summary = check_convergence(trace)
 
-    # Output directory
-    out_dir = DATA_ROOT / "analysis" / "bayesian_recommender"
-    out_dir.mkdir(parents=True, exist_ok=True)
-
     # Save trace summary
     summary.to_csv(out_dir / "parameter_summary.csv")
-    print(f"  → parameter_summary.csv")
+    print(f"  -> parameter_summary.csv")
 
     # Per-participant recommendations and plots
     print(f"\n  Recommendations:")
@@ -620,8 +639,10 @@ def main():
         emoji = "?" if rec["uncertain"] else ">"
         print(f"    {participant:15s} {emoji} {rec['recommendation']}")
 
-        # Posterior plot
-        plot_posterior_panels(trace, model, participant, out_dir / f"posterior_{participant}.png")
+        # Per-participant posterior plot
+        participant_plot_dir = DATA_ROOT / "analysis" / participant / "bayesian_recommender" / "plots"
+        participant_plot_dir.mkdir(parents=True, exist_ok=True)
+        plot_posterior_panels(trace, model, participant, participant_plot_dir / f"posterior_{participant}.png")
 
     # Export JSON for Streamlit
     export_streamlit_json(trace, model, out_dir / "recommendations.json")
@@ -629,11 +650,12 @@ def main():
     # Save full recommendations
     with open(out_dir / "all_recommendations.json", "w") as f:
         json.dump(all_recs, f, indent=2, default=str)
-    print(f"  → all_recommendations.json")
+    print(f"  -> all_recommendations.json")
 
-    # Save trace for reuse
-    trace.to_netcdf(str(out_dir / "trace.nc"))
-    print(f"  → trace.nc")
+    # Save trace for reuse (skip if we loaded it from the same file)
+    if not args.reuse_trace:
+        trace.to_netcdf(str(out_dir / "trace.nc"))
+        print(f"  -> trace.nc")
 
     print(f"\n{'='*60}")
     print(f"  Done. Outputs in {out_dir}")

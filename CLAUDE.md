@@ -64,12 +64,11 @@ A **Streamlit app** styled like "Spotify Wrapped" — per-participant summary wi
 ```bash
 # Install dependencies (uses uv package manager)
 uv sync
-
-# Or with pip
-pip install -r requirements.txt
 ```
 
-Requires Python 3.14+. Key dependencies: `pandas`, `numpy`, `matplotlib`, `seaborn`, `scikit-learn`, `scipy`, `fitparse`, `rich`, `questionary`.
+Uses a `.venv` managed by uv. All dependencies are tracked in `pyproject.toml` and `uv.lock`. Run commands with `uv run <command>` or activate the venv (`source .venv/Scripts/activate` on Windows Git Bash).
+
+Requires Python 3.12+. Key dependencies: `pandas`, `numpy`, `matplotlib`, `seaborn`, `scikit-learn`, `scipy`, `fitparse`, `rich`, `questionary`, `pymc`, `arviz`, `jax`, `numpyro`.
 
 ---
 
@@ -110,6 +109,20 @@ python3 scripts/wearables/garmin_pipeline.py [codename] --export data/wearables/
 python3 scripts/wearables/huawei_pipeline.py [codename]
 ```
 
+### Analysis
+
+```bash
+# Bayesian recommender — full sampling via JAX/NumPyro (~30s)
+python scripts/analysis/bayesian_recommender.py
+
+# Reuse existing trace (skip sampling, regenerate plots/recommendations)
+python scripts/analysis/bayesian_recommender.py --reuse-trace
+
+# Circadian baseline + ML
+python scripts/analysis/circadian_baseline.py
+python scripts/analysis/circadian_ml.py
+```
+
 ### Syntax Checking (no test suite yet)
 
 ```bash
@@ -137,18 +150,27 @@ python -m py_compile scripts/playlists/spotify_cli.py
 - Timezone note: FIT files are UTC; check-in times are CET (UTC+1)
 - `huawei_pipeline.py` — equivalent pipeline for Huawei Health exports
 
-**3. Data Analysis Notebooks** (`notebooks/`)
+**3. Analysis Scripts** (`scripts/analysis/`)
+- `circadian_baseline.py` — computes per-participant hourly stress baselines and feature matrix
+- `circadian_ml.py` — ML models (Ridge, RF, GBR) predicting mood/stress delta from circadian features + SHAP
+- `bayesian_recommender.py` — hierarchical Bayesian model recommending playlist type per participant; uses JAX/NumPyro for fast sampling; `--reuse-trace` skips sampling
+- `session_features.py`, `session_effect.py`, `baselines.py` — session-level feature extraction and baseline computation
+- `fit_extractor.py` — extracts biometric data from Garmin FIT files
+- `activity_classifier.py` — classifies activity from wearable data
+- Outputs follow a two-tier pattern:
+  - Per-participant: `data/analysis/[codename]/[pipeline_name]/` (e.g. hourly baselines, posterior plots)
+  - Combined: `data/analysis/[pipeline_name]/` (e.g. feature matrices, model results, combined plots)
+
+**4. Visualization Notebooks** (`notebooks/`)
 
 | Notebook | Purpose |
 |----------|---------|
-| `cross_participant_analysis.ipynb` | Aggregate biometric analysis across all participants — stress trajectories, circadian baseline deviation, mood vs physiology |
-| `ml_analysis_test_TD.ipynb` | ML experiments: playlist classification from biometrics, mood delta prediction, recommender prototype |
-| `music_class_ml.ipynb` | K-Means clustering of songs by audio features → supervised classification for playlist optimization |
-| `class_pl_gen.ipynb` | Interactive notebook-based playlist generator for quick parameter experimentation |
-| `trace_data_viz_*.ipynb` | Per-participant biometric trace visualization (stress, HR, Body Battery per session) |
+| `circadian_ml_analysis.ipynb` | Circadian baseline deviation analysis and ML model results |
+| `bayesian_recommender_viz.ipynb` | Bayesian recommender posteriors, shrinkage, sensitivity analysis |
+| `recovery_analysis.ipynb` | Recovery feature analysis |
 | `who_needs_reminding.ipynb` | Google Colab tool — flags participants who haven't checked in for 3+ days |
 
-**Baseline deviation** (computed in `cross_participant_analysis.ipynb`) is the strongest biometric signal: it compares during-session stress against the participant's typical stress at that same time of day on non-session days, controlling for circadian rhythm.
+**Baseline deviation** is the strongest biometric signal: it compares during-session stress against the participant's typical stress at that same time of day on non-session days, controlling for circadian rhythm.
 
 ### Data Flow
 
@@ -167,15 +189,21 @@ data/
 ├── playlists/[codename]/         # Input Exportify CSVs + generated playlists
 │   └── playlists_generated/      # Output: calm/neutral/energy CSVs + analysis plots
 ├── checkins/                     # Google Forms check-in export (single CSV)
-└── wearables/[codename]/
-    ├── raw/                      # Gitignored — contains PII (email, profile, location)
-    └── processed/                # Committed — anonymized pipeline outputs
-        ├── garmin_daily.csv
-        ├── garmin_minute_stress.csv
-        ├── garmin_minute_hr.csv
-        ├── session_biometrics.csv
-        ├── session_traces_all.csv
-        └── session_traces/       # Individual CSV per session
+├── wearables/[codename]/
+│   ├── raw/                      # Gitignored — contains PII (email, profile, location)
+│   └── processed/                # Committed — anonymized pipeline outputs
+│       ├── garmin_daily.csv
+│       ├── garmin_minute_stress.csv
+│       ├── garmin_minute_hr.csv
+│       ├── session_biometrics.csv
+│       ├── session_traces_all.csv
+│       └── session_traces/       # Individual CSV per session
+└── analysis/
+    ├── [codename]/               # Per-participant analysis outputs
+    │   ├── circadian_baselines/  # Hourly baselines + plots
+    │   └── bayesian_recommender/ # Posterior plots
+    ├── circadian_baselines/      # Combined: feature matrix, model results, plots
+    └── bayesian_recommender/     # Combined: parameter summary, recommendations, trace, plots
 ```
 
 ### Playlist Parameters (defaults in `spotify_cli.py`)

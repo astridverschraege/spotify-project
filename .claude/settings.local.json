@@ -18,7 +18,8 @@
       "Bash(python3 -m py_compile scripts/analysis/pipeline.py)",
       "Bash(uv run *)",
       "Bash(python3 -m py_compile scripts/wearables/garmin_pipeline.py)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(python:*)"
     ]
   }
 }

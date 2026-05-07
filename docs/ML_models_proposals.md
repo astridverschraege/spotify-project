@@ -93,7 +93,7 @@ hour is 14:00").
 > 7. Also fit models to predict `stress_delta` (= post_stress_mean − pre_stress_mean)
      with the same feature set.
 >
-> Participants: `bosbes`, `kokosnoot`. Pool data across participants (add
+> Participants: `bosbes`, `kokosnoot`, `limoen`, `peer`. Pool data across participants (add
 `participant_id` as a categorical feature). Paths:
 `data/wearables/{codename}/processed/`. Write clean, documented Python using pandas,
 > scikit-learn, shap, and matplotlib. Handle missing values explicitly (some

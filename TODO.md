@@ -42,11 +42,22 @@
 - [x] Peut-être rendez-vous avec Astrid le lundi. Un petit tête-à-tête pour discuter nous resultats.
 - [x] Astrid nog maar eens uitleggen hoe Github werkt. 
 
+- [x] Discussie **ML and DL** om `arousal` status te bepalen:
+  - [x] Uitschrijven zodat Timothy het tenminste snapt
+  - [x] De baseline per persoon uitwerken maar met verschillende activatieniveaus zoals bij het project van veerle. Definieer slaap, activiteitsniveau en gemiddelde op- en afbouwen van deze "statussen". Dan kan er in het bredere kader rond de luistersessies gekeken worden welk activatieniveau voor de sessie bezig was en of de muziek afhankelijk van de sessie significante invloed heeft op normaal hertstel.
+  - [x] Activatieniveau: is de persoon bezig met een activiteit/sport is deze inspanning licht, medium of zwaar. Of is de persoon in rust of slaapt? Over de volledige dataset.
 
+-- Astrid --
+- [x] Notebooks rond machine learning.
+- [x] Klasseren van muziek.
+- [x] Notebooks onderzoek van gegevens die uit data pipeline komt.
+- [x] Bayesian Per-Participant Playlist Recommender
+- [x] Circadian Baseline Deviation + Playlist Outcome Regression
 
 
 
 ---
+
 
 
 
@@ -57,19 +68,6 @@
   - [ ] verschillende modellen trainen
   - [ ] ...
 
-- [ ] Discussie **ML and DL** om `arousal` status te bepalen:
-  - [ ] Uitschrijven zodat Timothy het tenminste snapt
-  - [ ] De baseline per persoon uitwerken maar met verschillende activatieniveaus zoals bij het project van veerle. Definieer slaap, activiteitsniveau en gemiddelde op- en afbouwen van deze "statussen". Dan kan er in het bredere kader rond de luistersessies gekeken worden welk activatieniveau voor de sessie bezig was en of de muziek afhankelijk van de sessie significante invloed heeft op normaal hertstel.
-  - [ ] Activatieniveau: is de persoon bezig met een activiteit/sport is deze inspanning licht, medium of zwaar. Of is de persoon in rust of slaapt? Over de volledige dataset.
-
--- Astrid --
-- [ ] Notebooks rond machine learning.
-- [ ] Klasseren van muziek.
-- [ ] Notebooks onderzoek van gegevens die uit data pipeline komt.
-- [ ] - [ ] Bayesian Per-Participant Playlist Recommender
-- [ ] Circadian Baseline Deviation + Playlist Outcome Regression
-
-
 
 -- Timothy --
 - [ ] Verder data pipeline ontwikkelen:
@@ -79,9 +77,6 @@
 - [ ] Notebooks onderzoek van gegevens die uit data pipeline komt.
 - [ ] data structuur delen en bespreken
 - [ ] 1D-CNN on Per-Minute Pre-Session Stress Trajectories
-
-
-
 
 
 
