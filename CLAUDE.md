@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Project R.E.M.** (Regulation of Emotion through Music) is a research project that studies whether personalized music playlists can regulate emotional states. The system generates three playlist types (calm, neutral, energy) from participants' Spotify data, cross-referenced with smartwatch biometrics and self-reported mood check-ins.
 
-Participants are anonymized using fruit codenames: `bosbes`, `citroen`, `kiwi`, `kokosnoot`, `limoen`, `peer`, `watermeloen`, `aardbei`, etc.
+Participants are anonymized using fruit codenames: `bosbes`, `kiwi`, `kokosnoot`, `limoen`, `peer`, `watermeloen`, etc.
 
 **Contact:** rem.studie@gmail.com
 
