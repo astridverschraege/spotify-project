@@ -33,6 +33,20 @@ def _load_minute_stress(proc_dir: Path) -> pd.DataFrame:
     raise FileNotFoundError(f"No minute-level stress file found in {proc_dir}")
 
 
+def _load_minute_hr(proc_dir: Path) -> pd.DataFrame:
+    """Load minute-level heart rate from Garmin or Huawei processed file.
+
+    Returns DataFrame with columns: timestamp, heart_rate.
+    """
+    for fname in ("garmin_minute_hr.csv", "huawei_minute_hr.csv"):
+        path = proc_dir / fname
+        if path.exists():
+            df = pd.read_csv(path, parse_dates=["timestamp"])
+            df = df.dropna(subset=["heart_rate"])
+            return df[["timestamp", "heart_rate"]]
+    raise FileNotFoundError(f"No minute-level HR file found in {proc_dir}")
+
+
 def _load_daily_hrv(raw_dir: Path) -> dict[str, float]:
     """Load daily HRV (RMSSD) from Garmin healthStatusData.json if available.
 
@@ -58,6 +72,22 @@ def _load_daily_hrv(raw_dir: Path) -> dict[str, float]:
     return hrv
 
 
+def _load_daily_resp(proc_dir: Path) -> dict[str, float]:
+    """Load daily average respiration from garmin_daily.csv if available.
+
+    Returns dict mapping date string ('YYYY-MM-DD') to avg_resp value.
+    Returns empty dict if no daily file found or column missing.
+    """
+    path = proc_dir / "garmin_daily.csv"
+    if not path.exists():
+        return {}
+    df = pd.read_csv(path)
+    if "avg_resp" not in df.columns or "date" not in df.columns:
+        return {}
+    df = df.dropna(subset=["avg_resp"])
+    return dict(zip(df["date"].astype(str), df["avg_resp"]))
+
+
 def compute_circadian_baseline(
     participant: str,
     data_dir: Path,
@@ -74,7 +104,7 @@ def compute_circadian_baseline(
     Returns
     -------
     pd.DataFrame
-        Columns: hour (0–23), mean_stress, std_stress, n_observations.
+        Columns: hour (0–23), mean_stress, std_stress, n_obs_stress.
         Hours with fewer than MIN_OBS_PER_HOUR readings get NaN values.
     """
     proc_dir = data_dir / participant / "processed"
@@ -94,13 +124,60 @@ def compute_circadian_baseline(
     non_session["hour"] = non_session["timestamp"].dt.hour
     baseline = (
         non_session.groupby("hour")["stress"]
-        .agg(mean_stress="mean", std_stress="std", n_observations="count")
+        .agg(mean_stress="mean", std_stress="std", n_obs_stress="count")
         .reset_index()
     )
 
     # Set unreliable hours to NaN (too few observations for a stable estimate)
-    sparse = baseline["n_observations"] < MIN_OBS_PER_HOUR
+    sparse = baseline["n_obs_stress"] < MIN_OBS_PER_HOUR
     baseline.loc[sparse, ["mean_stress", "std_stress"]] = np.nan
+
+    return baseline
+
+
+def compute_circadian_hr_baseline(
+    participant: str,
+    data_dir: Path,
+) -> pd.DataFrame:
+    """Compute hourly heart rate baseline from non-session days.
+
+    Parameters
+    ----------
+    participant : str
+        Participant codename (e.g., 'bosbes').
+    data_dir : Path
+        Root data directory (e.g., Path('data/wearables')).
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: hour (0–23), mean_hr, std_hr, n_obs_hr.
+        Hours with fewer than MIN_OBS_PER_HOUR readings get NaN values.
+    """
+    proc_dir = data_dir / participant / "processed"
+
+    # Load minute-level HR (auto-detects Garmin or Huawei)
+    hr_df = _load_minute_hr(proc_dir)
+
+    # Load session dates to exclude
+    sessions_df = pd.read_csv(proc_dir / "session_biometrics.csv")
+    session_dates = set(pd.to_datetime(sessions_df["date"]).dt.date)
+
+    # Filter to non-session days
+    hr_df["date"] = hr_df["timestamp"].dt.date
+    non_session = hr_df[~hr_df["date"].isin(session_dates)].copy()
+
+    # Group by hour of day
+    non_session["hour"] = non_session["timestamp"].dt.hour
+    baseline = (
+        non_session.groupby("hour")["heart_rate"]
+        .agg(mean_hr="mean", std_hr="std", n_obs_hr="count")
+        .reset_index()
+    )
+
+    # Set unreliable hours to NaN (too few observations for a stable estimate)
+    sparse = baseline["n_obs_hr"] < MIN_OBS_PER_HOUR
+    baseline.loc[sparse, ["mean_hr", "std_hr"]] = np.nan
 
     return baseline
 
@@ -120,20 +197,30 @@ def build_feature_matrix(
 
     Returns
     -------
-    pd.DataFrame
-        Feature matrix with targets (mood_delta, stress_delta).
+    tuple[pd.DataFrame, dict[str, list[str]]]
+        Feature matrix with targets (mood_delta, stress_delta), and a dict
+        of excluded optional features per participant (>50% NaN threshold).
     """
+    OPTIONAL_FEATURES = ["hrv_rmssd", "avg_resp_daily"]
+    EXCLUSION_THRESHOLD = 0.50  # exclude if more than 50% NaN
+
     rows = []
 
     for participant in participants:
         baseline = compute_circadian_baseline(participant, data_dir)
         baseline_lookup = baseline.set_index("hour")["mean_stress"]
 
+        hr_baseline = compute_circadian_hr_baseline(participant, data_dir)
+        hr_baseline_lookup = hr_baseline.set_index("hour")["mean_hr"]
+
         proc_dir = data_dir / participant / "processed"
         sessions = pd.read_csv(proc_dir / "session_biometrics.csv")
 
         # Load daily HRV if available (from raw healthStatusData.json)
         hrv_lookup = _load_daily_hrv(data_dir / participant / "raw")
+
+        # Load daily respiration if available (from garmin_daily.csv)
+        resp_lookup = _load_daily_resp(proc_dir)
 
         # Parse dates and times
         sessions["date"] = pd.to_datetime(sessions["date"])
@@ -150,6 +237,11 @@ def build_feature_matrix(
             # Baseline deviation: actual pre_stress minus expected at that hour
             pre_stress = row["pre_stress_mean"]
             baseline_deviation = pre_stress - expected_stress if pd.notna(pre_stress) else np.nan
+
+            # HR baseline deviation: actual pre_hr minus expected at that hour
+            expected_hr = hr_baseline_lookup.get(hour, np.nan)
+            pre_hr = row["pre_hr_mean"]
+            hr_baseline_deviation = pre_hr - expected_hr if pd.notna(pre_hr) else np.nan
 
             # Days since last session
             if i == 0:
@@ -169,11 +261,15 @@ def build_feature_matrix(
             session_date_str = row["date"].strftime("%Y-%m-%d")
             hrv_rmssd = hrv_lookup.get(session_date_str, np.nan)
 
+            # Daily respiration for session date (optional)
+            avg_resp_daily = resp_lookup.get(session_date_str, np.nan)
+
             features = {
                 "participant": participant,
                 "date": row["date"],
                 "playlist": row["playlist"],
                 "baseline_deviation_entry": baseline_deviation,
+                "hr_baseline_deviation": hr_baseline_deviation,
                 "hour_of_day": hour,
                 "day_of_week": row["day_of_week"],
                 "playlist_calm": 1 if row["playlist"] == "Calm" else 0,
@@ -182,30 +278,53 @@ def build_feature_matrix(
                 "bb_start": row["bb_start"],
                 "days_since_last_session": days_since_last,
                 "hrv_rmssd": hrv_rmssd,
+                "avg_resp_daily": avg_resp_daily,
                 # Targets
                 "mood_delta": mood_delta,
                 "stress_delta": stress_delta,
                 # Context (not features, but useful for inspection)
                 "pre_stress_mean": pre_stress,
                 "expected_stress_at_hour": expected_stress,
+                "pre_hr_mean": pre_hr,
+                "expected_hr_at_hour": expected_hr,
             }
             rows.append(features)
 
-    return pd.DataFrame(rows)
+    fm = pd.DataFrame(rows)
+
+    # Compute per-participant exclusion guard for optional features
+    excluded_features: dict[str, list[str]] = {}
+    for participant in fm["participant"].unique():
+        mask = fm["participant"] == participant
+        n_sessions = mask.sum()
+        excluded = []
+        for feat in OPTIONAL_FEATURES:
+            n_missing = fm.loc[mask, feat].isna().sum()
+            if n_missing / n_sessions > EXCLUSION_THRESHOLD:
+                excluded.append(feat)
+        excluded_features[participant] = excluded
+        if excluded:
+            print(f"  {participant}: excluding {excluded} from ML/significance (>{EXCLUSION_THRESHOLD*100:.0f}% NaN)")
+
+    return fm, excluded_features
 
 
 def export_baselines(
     participants: list[str],
     data_dir: Path,
     analysis_dir: Path,
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, dict[str, list[str]]]:
     """Compute and export circadian baselines and feature matrix to CSV.
 
     Per-participant baselines go to:
         {analysis_dir}/{participant}/circadian_baselines/hourly_baseline.csv
     Combined feature matrix goes to:
         {analysis_dir}/circadian_baselines/feature_matrix.csv
+    Exclusion metadata goes to:
+        {analysis_dir}/circadian_baselines/excluded_features.json
     """
+    import json
+
     combined_dir = analysis_dir / "circadian_baselines"
     combined_dir.mkdir(parents=True, exist_ok=True)
 
@@ -213,13 +332,21 @@ def export_baselines(
         participant_dir = analysis_dir / participant / "circadian_baselines"
         participant_dir.mkdir(parents=True, exist_ok=True)
 
-        baseline = compute_circadian_baseline(participant, data_dir)
+        stress_baseline = compute_circadian_baseline(participant, data_dir)
+        hr_baseline = compute_circadian_hr_baseline(participant, data_dir)
+
+        # Merge stress and HR baselines into one CSV for easy visualization
+        baseline = stress_baseline.merge(hr_baseline, on="hour", how="outer")
         baseline.to_csv(participant_dir / "hourly_baseline.csv", index=False)
 
-    feature_matrix = build_feature_matrix(participants, data_dir)
+    feature_matrix, excluded_features = build_feature_matrix(participants, data_dir)
     feature_matrix.to_csv(combined_dir / "feature_matrix.csv", index=False)
 
-    return feature_matrix
+    # Save exclusion metadata for downstream code (ML, significance tests)
+    with open(combined_dir / "excluded_features.json", "w") as f:
+        json.dump(excluded_features, f, indent=2)
+
+    return feature_matrix, excluded_features
 
 
 if __name__ == "__main__":
@@ -229,7 +356,7 @@ if __name__ == "__main__":
     ANALYSIS_DIR = Path(__file__).resolve().parents[2] / "data/analysis"
     PARTICIPANTS = ["bosbes", "kokosnoot", "limoen", "peer"]
 
-    fm = export_baselines(PARTICIPANTS, DATA_DIR, ANALYSIS_DIR)
+    fm, excluded = export_baselines(PARTICIPANTS, DATA_DIR, ANALYSIS_DIR)
     print(f"Feature matrix: {len(fm)} sessions, {fm.columns.tolist()}")
     print(f"\nMood delta stats:\n{fm['mood_delta'].describe()}")
     print(f"\nBaseline deviation stats:\n{fm['baseline_deviation_entry'].describe()}")

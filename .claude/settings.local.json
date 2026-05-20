@@ -20,6 +20,9 @@
       "Bash(python3 -m py_compile scripts/wearables/garmin_pipeline.py)",
       "Bash(python3 *)",
       "Bash(python:*)"
+    ],
+    "ask": [
+      "Bash(git commit*)"
     ]
   }
 }
