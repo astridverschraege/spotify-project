@@ -118,9 +118,10 @@ python scripts/analysis/bayesian_recommender.py
 # Reuse existing trace (skip sampling, regenerate plots/recommendations)
 python scripts/analysis/bayesian_recommender.py --reuse-trace
 
-# Circadian baseline + ML
+# Circadian baseline + ML + significance
 python scripts/analysis/circadian_baseline.py
 python scripts/analysis/circadian_ml.py
+python scripts/analysis/circadian_significance.py
 ```
 
 ### Syntax Checking (no test suite yet)
@@ -159,6 +160,7 @@ python -m py_compile scripts/playlists/spotify_cli.py
 - `activity_classifier.py` — classifies activity from wearable data
 - `music_classifier.py` — Gaussian Mixture Model clustering on audio features (k=3 vs. BIC-optimal) for exploratory music categorization
 - `music_classification.py` — arousal-score rule-based music classification (calm/energy/other) using weighted Spotify audio features; produces per-participant classified_songs.csv
+- `circadian_significance.py` — per-participant significance tests (Wilcoxon signed-rank, OLS trend) on session effects; reads feature matrix, outputs `significance_tests.csv`
 - `session_arc_analysis.py` — full session arc analysis: compares physiological metrics across pre/during/post windows against circadian baselines; runs significance tests and long-term trend analysis
 - Outputs follow a two-tier pattern:
   - Per-participant: `data/analysis/[codename]/[pipeline_name]/` (e.g. hourly baselines, posterior plots)
@@ -189,7 +191,11 @@ hr_baseline_deviation = pre_hr_mean - expected_hr_at_hour
 - **All-days baseline** (non-session days) → ML features (`baseline_deviation_entry`, `hr_baseline_deviation`). More data = more stable per-session deviation estimates.
 - **Pre-study baseline** (days before first session only) → long-term trend analysis. Fixed reference point, not contaminated by cumulative session effects.
 
-**What significance testing exists:** None yet. Neither `circadian_baseline.py` nor `circadian_ml.py` computes p-values, confidence intervals, or effect sizes. The `std_stress` per hour is visual only (shaded band on circadian curve plot). Permutation importance `importance_std` reflects variability across 30 shuffles, not a significance test. Significance tests (Wilcoxon, OLS trend) are planned for `circadian_ml.py` Step 3.
+**Significance testing** is handled by `circadian_significance.py` (separate from ML). Per-participant only (no pooling). Three test types:
+- **Immediate effects** (Wilcoxon signed-rank): pre vs during/post stress & HR — unstratified, by playlist, by playlist × activity state
+- **Mood effect** (one-sample Wilcoxon): mood_delta ≠ 0 per playlist type
+- **Long-term trend** (OLS): pre_study deviation over session sequence number
+All two-tailed, N≥5 guard. Output: `data/analysis/circadian_baselines/significance_tests.csv`
 
 ### Data Flow
 
