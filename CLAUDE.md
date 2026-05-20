@@ -151,7 +151,7 @@ python -m py_compile scripts/playlists/spotify_cli.py
 - `huawei_pipeline.py` — equivalent pipeline for Huawei Health exports
 
 **3. Analysis Scripts** (`scripts/analysis/`)
-- `circadian_baseline.py` — computes per-participant hourly stress baselines (mean ± std per hour, non-session days only) and builds feature matrix with `baseline_deviation_entry` (raw stress-unit diff vs. expected); no significance testing
+- `circadian_baseline.py` — computes per-participant hourly stress + HR baselines (mean ± std per hour, non-session days only), plus a fixed pre-study baseline (days before first session) for long-term trend analysis. Builds feature matrix (28 columns) with baseline deviations, session window means (pre/during/post stress & HR), activity pre-state, and optional HRV/respiration. Excludes features with >50% NaN per participant via `excluded_features.json`
 - `circadian_ml.py` — ML models (Ridge, RF, GBR) predicting mood/stress delta from circadian features + SHAP; evaluates with LOO cross-validation (MAE, RMSE, R²); permutation importance and SHAP for explainability only, not inference
 - `bayesian_recommender.py` — hierarchical Bayesian model recommending playlist type per participant; uses JAX/NumPyro for fast sampling; `--reuse-trace` skips sampling
 - `session_features.py`, `session_effect.py`, `baselines.py` — session-level feature extraction and baseline computation
@@ -179,12 +179,17 @@ python -m py_compile scripts/playlists/spotify_cli.py
 **Circadian baseline deviation — how it is computed:**
 ```
 baseline_deviation = pre_stress_mean - expected_stress_at_hour
+hr_baseline_deviation = pre_hr_mean - expected_hr_at_hour
 ```
-- `pre_stress_mean` — participant's measured stress during the pre-session window
-- `expected_stress_at_hour` — mean stress at that same hour of day on non-session days (hours with <5 obs → NaN)
-- The deviation is a raw stress-unit difference, not normalized (not a z-score)
+- `pre_stress_mean` / `pre_hr_mean` — participant's measured stress/HR during the pre-session window
+- `expected_stress_at_hour` / `expected_hr_at_hour` — mean stress/HR at that same hour of day on non-session days (hours with <5 obs → NaN)
+- The deviation is a raw unit difference, not normalized (not a z-score)
 
-**What significance testing exists:** None. Neither `circadian_baseline.py` nor `circadian_ml.py` computes p-values, confidence intervals, or effect sizes. The `std_stress` per hour is visual only (shaded band on circadian curve plot). Permutation importance `importance_std` reflects variability across 30 shuffles, not a significance test. No inferential statistics on whether session-period deviation differs meaningfully from zero or from typical day-to-day variability.
+**Two baselines, two purposes:**
+- **All-days baseline** (non-session days) → ML features (`baseline_deviation_entry`, `hr_baseline_deviation`). More data = more stable per-session deviation estimates.
+- **Pre-study baseline** (days before first session only) → long-term trend analysis. Fixed reference point, not contaminated by cumulative session effects.
+
+**What significance testing exists:** None yet. Neither `circadian_baseline.py` nor `circadian_ml.py` computes p-values, confidence intervals, or effect sizes. The `std_stress` per hour is visual only (shaded band on circadian curve plot). Permutation importance `importance_std` reflects variability across 30 shuffles, not a significance test. Significance tests (Wilcoxon, OLS trend) are planned for `circadian_ml.py` Step 3.
 
 ### Data Flow
 
@@ -215,8 +220,10 @@ data/
 └── analysis/
     ├── [codename]/               # Per-participant analysis outputs
     │   ├── circadian_baselines/  # Hourly baselines + plots
-    │   └── bayesian_recommender/ # Posterior plots
+    │   ├── bayesian_recommender/ # Posterior plots
+    │   └── classified_minutes.csv # Activity-classified minute data (from pipeline.py)
     ├── circadian_baselines/      # Combined: feature matrix, model results, plots
+    ├── session_arc/              # Combined: arc deviations, significance tests
     └── bayesian_recommender/     # Combined: parameter summary, recommendations, trace, plots
 ```
 
