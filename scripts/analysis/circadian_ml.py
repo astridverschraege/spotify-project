@@ -31,6 +31,7 @@ from sklearn.pipeline import Pipeline
 # Features used in models (hrv_rmssd excluded — only 1 participant has it)
 FEATURE_COLS = [
     "baseline_deviation_entry",
+    "hr_baseline_deviation",
     "hour_of_day",
     "day_of_week",
     "playlist_calm",
@@ -38,6 +39,13 @@ FEATURE_COLS = [
     "mood_before_score",
     "bb_start",
     "days_since_last_session",
+    "during_stress_mean",
+    "post_stress_mean",
+    "during_hr_mean",
+    "post_hr_mean",
+    "pre_state_encoded",
+    "hrv_rmssd",
+    "avg_resp_daily",
 ]
 
 # Participant one-hot columns are added dynamically
