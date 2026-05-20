@@ -285,7 +285,7 @@ def crossref_sessions(checkin_path, code, hr_df, stress_df, utc_offset=1, buffer
     Note: Huawei has no Body Battery — that column will be absent.
     """
     checkin = pd.read_csv(checkin_path)
-    sessions = checkin[checkin["Deelnemerscode"].str.lower() == code.lower()].copy()
+    sessions = checkin[checkin["Deelnemerscode"].str.strip().str.lower() == code.lower()].copy()
     if sessions.empty:
         print(f"  ⚠ No sessions for '{code}'")
         return pd.DataFrame(), []
@@ -525,7 +525,7 @@ def run(export_dir, out_dir, checkin_path=None, code=None, months=6):
     if checkin_path and code:
         try:
             _ck = pd.read_csv(checkin_path)
-            _sess = _ck[_ck["Deelnemerscode"].str.lower() == code.lower()]
+            _sess = _ck[_ck["Deelnemerscode"].str.strip().str.lower() == code.lower()]
             _dates = fix_checkin_dates(_sess)
             if len(_dates):
                 date_start = (_dates.min() - _dt.timedelta(days=30)).to_pydatetime()
@@ -627,7 +627,7 @@ if __name__ == "__main__":
 
     export_dir = args.export or base / "raw" / "export"
     out_dir    = args.out    or base / "processed"
-    checkin    = args.checkin or next((root / "data" / "checkins").glob("*.csv"), None)
+    checkin    = args.checkin or next((root / "data" / "check_in").glob("*.csv"), None)
 
     if not export_dir.exists():
         sys.exit(f"✗ Export not found: {export_dir}\n"
