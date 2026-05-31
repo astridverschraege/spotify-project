@@ -1,13 +1,13 @@
 # Pipeline Reorganisation Plan — Project R.E.M.
 
 ## STATUS TRACKER (update as work progresses)
-- [ ] Pipeline 1 — extraction/
-- [ ] Pipeline 2 — baseline/
+- [x] Pipeline 1 — extraction/
+- [x] Pipeline 2 — baseline/
 - [ ] Pipeline 3 — sessions/
 - [ ] Master pipeline (main.py)
 - [ ] Notebooks (ML scripts converted)
 
-**Currently working on:** Not started — awaiting first pipeline kick-off.
+**Currently working on:** Pipeline 3 — sessions/
 
 ---
 
@@ -102,6 +102,47 @@ notebooks/
 **Skip condition:** If `data/analysis/session_arc/significance_results.csv` exists and is newer than baseline outputs.
 
 **Output:** `data/analysis/session_arc/`, `data/analysis/circadian_baselines/significance_tests.csv`
+
+**Known issue — resolved during migration (2026-05-31):**
+`PersonBaseline.get_recovery_curve()` — most fitted curves have R²≈0 (noisy segments,
+wrong y0 anchor, majority of transitions not true recovery events). Decision: no hard
+upstream filter. Instead, add `r2_expected` column to session_effect.py output so
+analysts can apply any threshold at analysis time. `recovery_analysis.py` defines the
+`reliable` flag (r2_actual > threshold AND pre_stress ≥ asymptote) for primary conclusions.
+
+---
+
+### Pipeline 3 — Detailed Migration Plan (finalised 2026-05-31)
+
+**Decisions made before migration:**
+
+| # | Question | Decision |
+|---|----------|----------|
+| 1 | R² guard | No hard filter upstream. Add `r2_expected` to session_effect.py output. Apply threshold at analysis time in recovery_analysis.py via `reliable` flag. |
+| 2 | PersonBaseline deserialization | Add `PersonBaseline.load_from_summary(df)` class method to `scripts/baseline/baselines.py`. Reconstructs `RecoveryCurve` objects from recovery_baselines.csv columns. Pipeline 3 never re-fits — loads from Pipeline 2 output. |
+| 3 | Activity state classification | Merge into `sessions/utils.py` as `classify_window_state(classified_df, start_utc, end_utc)`. Pre-session window stays 30 min. `session_effect.py` keeps its own date parsing, calls the shared function at the end. |
+| 4 | `compute_signal_baseline()` | Keep inline in session_arc_analysis.py. Add TODO comment pointing to parallel logic in `baseline/circadian_baseline.py` for future consolidation. |
+| 5 | Timezone fix | Fix during migration using `zoneinfo.ZoneInfo("Europe/Brussels")` in both session_effect.py and session_arc_analysis.py. Add `local_to_utc(dt_local)` helper to `sessions/utils.py`. |
+
+**Migration order (one step at a time, verify before next):**
+
+1. **`scripts/sessions/__init__.py`** — create empty, marks package
+2. **`scripts/sessions/utils.py`** — create new; contains `classify_window_state()` (moved from session_arc_analysis.py) + `local_to_utc(dt_local)` timezone helper using `ZoneInfo("Europe/Brussels")`
+3. **`scripts/baseline/baselines.py`** — add `PersonBaseline.load_from_summary(df)` class method only; no other changes to Pipeline 2 files
+4. **`scripts/sessions/session_effect.py`** — move from scripts/analysis/; update import to `from baseline.baselines import ...`; replace hardcoded `-1h` offset with `local_to_utc()` from utils; add `r2_expected` to output rows; replace `_classify_pre_session_state()` with call to `classify_window_state()` from utils
+5. **`scripts/sessions/session_features.py`** — move from scripts/analysis/; update path constants only (no code imports from other pipelines)
+6. **`scripts/sessions/session_arc_analysis.py`** — move from scripts/analysis/; update imports to `from baseline.circadian_baseline import ...` and `from sessions.utils import classify_window_state`; replace hardcoded `-1h` offsets with `local_to_utc()` from utils; remove local `classify_window_state()` (now in utils); add TODO comment on `compute_signal_baseline()`
+7. **`scripts/sessions/circadian_significance.py`** — move from scripts/analysis/; update path constants only (no cross-pipeline imports)
+8. **`scripts/sessions/recovery_analysis.py`** — convert from notebooks/recovery_analysis.ipynb; extract quality filter logic, recovery_features.csv export, per-participant recovery window plots, summary stats; drop notebook-only cells
+9. **`scripts/sessions/pipeline.py`** — create new entry point; loads classified_minutes.csv (Pipeline 1 output) + recovery_baselines.csv (Pipeline 2 output) via `PersonBaseline.load_from_summary()`; runs all five stages in order
+10. **Delete** `scripts/analysis/session_effect.py`, `session_features.py`, `session_arc_analysis.py`, `circadian_significance.py`, `pipeline.py` after verification passes
+
+**Verification:**
+```bash
+uv run python -m py_compile scripts/sessions/pipeline.py
+uv run python scripts/sessions/pipeline.py --help
+uv run python scripts/sessions/pipeline.py peer
+```
 
 ---
 

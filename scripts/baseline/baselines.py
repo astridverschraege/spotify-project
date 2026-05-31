@@ -20,6 +20,8 @@ import pandas as pd
 from scipy.optimize import curve_fit
 from scipy.optimize import OptimizeWarning
 
+from .utils import filter_non_session_days
+
 
 # Minimum consecutive minutes needed after a transition to attempt a curve fit
 _MIN_RECOVERY_POINTS = 10
@@ -70,7 +72,8 @@ class PersonBaseline:
                        heart_rate, stress, body_battery. Index must be datetime.
             session_dates: List of 'YYYY-MM-DD' strings to exclude from baseline fitting.
         """
-        df = _exclude_session_days(minute_df, session_dates)
+        session_date_set = {pd.Timestamp(d).date() for d in session_dates}
+        df = filter_non_session_days(minute_df, session_date_set, timestamp_col=None)
         if df.empty:
             warnings.warn(f"[{self.participant}] No non-session data available for baseline fitting")
             return self
@@ -212,17 +215,6 @@ class PersonBaseline:
                 n_obs=len(taus),
                 r_squared=r2_median,
             )
-
-
-def _exclude_session_days(df: pd.DataFrame, session_dates: list[str]) -> pd.DataFrame:
-    """Remove all rows from days that had a music session."""
-    if not session_dates or df.empty:
-        return df
-    if not hasattr(df.index, "date"):
-        return df
-    session_date_set = {pd.Timestamp(d).date() for d in session_dates}
-    mask = pd.Series(df.index, index=df.index).apply(lambda ts: ts.date() not in session_date_set)
-    return df[mask.values]
 
 
 def _fit_exp_decay(t: np.ndarray, y: np.ndarray, asymptote: float) -> Optional[tuple[float, float]]:

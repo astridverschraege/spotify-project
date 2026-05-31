@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from .utils import filter_non_session_days, get_session_dates, local_to_utc
 
 
 MIN_OBS_PER_HOUR = 5  # Below this threshold, hourly baseline is set to NaN
@@ -113,18 +114,10 @@ def compute_circadian_baseline(
     """
     proc_dir = data_dir / participant / "processed"
 
-    # Load minute-level stress (auto-detects Garmin or Huawei)
     stress_df = _load_minute_stress(proc_dir)
+    session_dates = get_session_dates(proc_dir)
+    non_session = filter_non_session_days(stress_df, session_dates)
 
-    # Load session dates to exclude
-    sessions_df = pd.read_csv(proc_dir / "session_biometrics.csv")
-    session_dates = set(pd.to_datetime(sessions_df["date"]).dt.date)
-
-    # Filter to non-session days
-    stress_df["date"] = stress_df["timestamp"].dt.date
-    non_session = stress_df[~stress_df["date"].isin(session_dates)].copy()
-
-    # Group by hour of day
     non_session["hour"] = non_session["timestamp"].dt.hour
     baseline = (
         non_session.groupby("hour")["stress"]
@@ -160,18 +153,10 @@ def compute_circadian_hr_baseline(
     """
     proc_dir = data_dir / participant / "processed"
 
-    # Load minute-level HR (auto-detects Garmin or Huawei)
     hr_df = _load_minute_hr(proc_dir)
+    session_dates = get_session_dates(proc_dir)
+    non_session = filter_non_session_days(hr_df, session_dates)
 
-    # Load session dates to exclude
-    sessions_df = pd.read_csv(proc_dir / "session_biometrics.csv")
-    session_dates = set(pd.to_datetime(sessions_df["date"]).dt.date)
-
-    # Filter to non-session days
-    hr_df["date"] = hr_df["timestamp"].dt.date
-    non_session = hr_df[~hr_df["date"].isin(session_dates)].copy()
-
-    # Group by hour of day
     non_session["hour"] = non_session["timestamp"].dt.hour
     baseline = (
         non_session.groupby("hour")["heart_rate"]
@@ -261,22 +246,19 @@ def compute_pre_study_hr_baseline(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  ACTIVITY STATE HELPERS (inlined to avoid circular import with session_arc)
+#  ACTIVITY STATE HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 
-_ANALYSIS_DIR = Path(__file__).resolve().parents[2] / "data" / "analysis"
-
-
-def _load_classified_minutes(participant: str) -> pd.DataFrame | None:
-    """Load classified_minutes.csv produced by pipeline.py.
+def _load_classified_minutes(participant: str, analysis_dir: Path) -> pd.DataFrame | None:
+    """Load classified_minutes.csv produced by the extraction pipeline.
 
     Returns None (with warning) if the file doesn't exist yet.
     """
-    path = _ANALYSIS_DIR / participant / "classified_minutes.csv"
+    path = analysis_dir / participant / "classified_minutes.csv"
     if not path.exists():
         print(
             f"  WARNING: [{participant}] classified_minutes.csv not found — "
-            f"pre_state will be NaN. Run: python scripts/analysis/pipeline.py --participants {participant}"
+            f"pre_state will be NaN. Run: uv run python scripts/extraction/pipeline.py {participant}"
         )
         return None
     return pd.read_csv(path, index_col="timestamp", parse_dates=True)
@@ -302,6 +284,7 @@ def _classify_window_state(
 def build_feature_matrix(
     participants: list[str],
     data_dir: Path,
+    analysis_dir: Path,
 ) -> pd.DataFrame:
     """Build a feature matrix with one row per session, pooled across participants.
 
@@ -310,7 +293,9 @@ def build_feature_matrix(
     participants : list[str]
         List of participant codenames.
     data_dir : Path
-        Root data directory (e.g., Path('data/wearables')).
+        Root wearables directory (e.g., Path('data/wearables')).
+    analysis_dir : Path
+        Root analysis directory (e.g., Path('data/analysis')).
 
     Returns
     -------
@@ -346,7 +331,7 @@ def build_feature_matrix(
         resp_lookup = _load_daily_resp(proc_dir)
 
         # Load classified minutes for pre_state computation
-        classified_df = _load_classified_minutes(participant)
+        classified_df = _load_classified_minutes(participant, analysis_dir)
 
         # Parse dates and times
         sessions["date"] = pd.to_datetime(sessions["date"])
@@ -399,8 +384,7 @@ def build_feature_matrix(
 
             # Pre-session activity state from classified minutes
             if classified_df is not None:
-                start_local = pd.Timestamp(f"{row['date'].date()} {row['start_local']}")
-                start_utc = start_local - pd.Timedelta(hours=1)  # CET → UTC
+                start_utc = local_to_utc(row["date"].date(), row["start_local"])
                 pre_state = _classify_window_state(
                     classified_df,
                     start_utc - pd.Timedelta(minutes=30),
@@ -500,7 +484,7 @@ def export_baselines(
         baseline = baseline.merge(pre_hr_baseline, on="hour", how="outer")
         baseline.to_csv(participant_dir / "hourly_baseline.csv", index=False)
 
-    feature_matrix, excluded_features = build_feature_matrix(participants, data_dir)
+    feature_matrix, excluded_features = build_feature_matrix(participants, data_dir, analysis_dir)
     feature_matrix.to_csv(combined_dir / "feature_matrix.csv", index=False)
 
     # Save exclusion metadata for downstream code (ML, significance tests)
@@ -508,16 +492,3 @@ def export_baselines(
         json.dump(excluded_features, f, indent=2)
 
     return feature_matrix, excluded_features
-
-
-if __name__ == "__main__":
-    from pathlib import Path
-
-    DATA_DIR = Path(__file__).resolve().parents[2] / "data/wearables"
-    ANALYSIS_DIR = Path(__file__).resolve().parents[2] / "data/analysis"
-    PARTICIPANTS = ["bosbes", "kokosnoot", "limoen", "peer"]
-
-    fm, excluded = export_baselines(PARTICIPANTS, DATA_DIR, ANALYSIS_DIR)
-    print(f"Feature matrix: {len(fm)} sessions, {fm.columns.tolist()}")
-    print(f"\nMood delta stats:\n{fm['mood_delta'].describe()}")
-    print(f"\nBaseline deviation stats:\n{fm['baseline_deviation_entry'].describe()}")
