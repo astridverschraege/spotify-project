@@ -254,7 +254,7 @@ Current contents: `config.json`, `scaler.pkl` (from `music_classification.py`).
 - [x] `visualisation/circadian_ml_viz.ipynb`
 - [x] `ml/music_class_thresholds.ipynb`
 - [x] `visualisation/music_class_thresholds_viz.ipynb`
-- [ ] `ml/music_class_unsupervised.ipynb`
+- [x] `ml/music_class_unsupervised.ipynb`
 - [ ] `visualisation/music_class_unsupervised_viz.ipynb`
 - [ ] `visualisation/recovery_analysis.ipynb`
 - [ ] `visualisation/extraction_pipeline.ipynb`

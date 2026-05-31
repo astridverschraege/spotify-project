@@ -30,8 +30,8 @@ The work is split into three phases:
 - [x] `notebooks/visualisation/circadian_ml_viz.ipynb` — built, runs clean
 - [x] `notebooks/ml/music_class_thresholds.ipynb`
 - [x] `notebooks/visualisation/music_class_thresholds_viz.ipynb`
-- [ ] `notebooks/ml/music_class_unsupervised.ipynb` ← **NEXT**
-- [ ] `notebooks/visualisation/music_class_unsupervised_viz.ipynb`
+- [x] `notebooks/ml/music_class_unsupervised.ipynb`
+- [ ] `notebooks/visualisation/music_class_unsupervised_viz.ipynb` ← **NEXT**
 - [ ] `notebooks/visualisation/recovery_analysis.ipynb` (move + sys.path fix only)
 - [ ] `notebooks/visualisation/extraction_pipeline.ipynb`
 - [ ] `notebooks/visualisation/baseline_pipeline.ipynb`
