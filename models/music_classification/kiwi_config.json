@@ -1,8 +1,8 @@
 {
-  "created": "2026-06-06T06:07:35.125854",
-  "participant": "peer",
-  "n_songs_total": 691,
-  "n_songs_classified": 691,
+  "created": "2026-06-06T06:07:35.125409",
+  "participant": "kiwi",
+  "n_songs_total": 391,
+  "n_songs_classified": 391,
   "scoring_features": [
     "tempo",
     "energy",
@@ -30,8 +30,8 @@
     "liveness_max": 0.8
   },
   "class_distribution": {
-    "calm": 53,
-    "energy": 96,
-    "other": 542
+    "calm": 51,
+    "energy": 48,
+    "other": 292
   }
 }
