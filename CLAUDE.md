@@ -53,18 +53,18 @@ Three parallel ML directions being explored in `notebooks/`:
 - **Arousal/stress prediction** — Predict stress trajectory from biometric baseline + context (time of day, prior session, playlist type).
 - **Combined mood model** — Given current physiological state, predict which playlist type will produce the best mood outcome for that participant. Most novel contribution of the project.
 
-### Current ML Metrics (mood_delta, LOO-CV, post data-leakage fix — 2026-05-25)
+### Current ML Metrics (mood_delta, LOO-CV — current notebook outputs 2026-06-06)
 
-After removing look-ahead features, adding inner 5-fold CV hyperparameter search, cyclical hour/day encoding (sin/cos), ISO interaction terms (`playlist × baseline_deviation_entry`), and `session_number`:
+N=82 sessions, 4 participants with biometric data. Per-fold median imputation within Pipeline to prevent leakage.
 
 | Model | MAE | RMSE | R² (LOO) | Overfit gap |
 |---|---|---|---|---|
-| Dummy basislijn | 1.988 | 2.752 | −0.052 | 0.052 |
-| Ridge regressie | 1.737 | 2.338 | 0.241 | 0.270 |
-| **Random Forest** | **1.438** | **2.093** | **0.391** | 0.345 |
-| Gradient Boosting | 1.473 | 2.068 | 0.406 | 0.348 |
+| Dummy basislijn | 1.817 | 2.460 | −0.025 | — |
+| **Ridge regressie** | **1.578** | **2.007** | **0.318** | — |
+| Random Forest | 1.666 | 2.128 | 0.233 | — |
+| Gradient Boosting | 1.778 | 2.295 | 0.108 | 0.712 |
 
-Best model by R²: Gradient Boosting (R²=0.406); best by MAE: Random Forest (1.438). Overfit gaps significantly reduced vs prior run (RF: 0.455→0.345, GB: 0.575→0.348). `mood_before_score` and circadian features are top Ridge predictors. Results remain exploratory at N=40.
+Best model: Ridge (MAE=1.578, R²=0.318). GB overfits severely (train R²=0.820 vs LOO R²=0.108). Ridge also best for stress_delta (LOO R²=0.870), but stress predictions do not generalize across participants (LOPO MAE=5.868 vs LOO MAE=2.866). `mood_before_score` and `baseline_deviation_entry` are top predictors. Results remain exploratory at N=82.
 
 ### Final Output Goal
 
