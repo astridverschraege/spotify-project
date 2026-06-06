@@ -8,7 +8,7 @@ from shiny import module, reactive, render, ui as _ui
 from utils.chart_helpers import ACCENT, PLAYLIST_COLORS, STRESS_RED, TEXT_SECONDARY
 from utils.data_loader import AppData
 
-ROOT = Path(__file__).parent.parent
+ROOT = Path(__file__).parent.parent.parent
 DATA = ROOT / "data"
 REPO_URL = "https://github.com/timothydhoe/spotify-project"
 
