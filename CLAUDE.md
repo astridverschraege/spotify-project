@@ -68,7 +68,7 @@ Best model by R²: Gradient Boosting (R²=0.406); best by MAE: Random Forest (1.
 
 ### Final Output Goal
 
-A **Shiny for Python app** styled like "Spotify Wrapped" — per-participant summary with biometric arcs, model explainability, Bayesian recommendations. Run with `uv run shiny run app.py`. Target: ready for final presentation June 20, 2026.
+A **Shiny for Python app** styled like "Spotify Wrapped" — per-participant summary with biometric arcs, model explainability, Bayesian recommendations. Run with `uv run shiny run ui/app.py`. Target: ready for final presentation June 20, 2026.
 
 ---
 
