@@ -114,13 +114,12 @@ html, body {
 }
 
 .navbar-brand::before {
-  /* Inline SVG music-note logo mark — matches favicon.svg */
   content: '';
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 24px;
   flex-shrink: 0;
   display: inline-block;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='9' cy='22' r='5.5' fill='%2315803d'/%3E%3Ccircle cx='22' cy='17' r='4' fill='%2316a34a'/%3E%3Cline x1='14.3' y1='22' x2='25.8' y2='10.5' stroke='%2315803d' stroke-width='2.2' stroke-linecap='round'/%3E%3Cpath d='M25.8 10.5 Q29 12 27 16' stroke='%2316a34a' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: url("/logo/MoodTune-logo.svg");
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;

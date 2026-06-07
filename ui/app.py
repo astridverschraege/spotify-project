@@ -52,7 +52,7 @@ app_ui = ui.page_navbar(
     title="MoodTune",
     header=ui.div(
         ui.tags.head(
-            ui.tags.link(rel="icon", type="image/svg+xml", href="favicon.svg"),
+            ui.tags.link(rel="icon", type="image/svg+xml", href="logo/MoodTune-logo.svg"),
             ui.tags.link(rel="stylesheet", href="styles.css"),
             ui.busy_indicators.use(spinners=True, pulse=True),
         ),
