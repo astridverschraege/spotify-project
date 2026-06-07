@@ -48,7 +48,7 @@ def _circadian_clock_svg(golden_hour: int, peak_hour: int) -> str:
 
     # Peak window arc (2 hours, orange)
     orange_path = _arc_path(peak_hour, peak_hour + 2, r_outer, r_inner, cx, cy)
-    orange_arc = f'<path d="{orange_path}" fill="#ea6c0a" opacity="0.85"/>'
+    orange_arc = f'<path d="{orange_path}" fill="#E69F00" opacity="0.85"/>'
 
     # Hour tick marks at 0, 6, 12, 18 and label them
     ticks = ""
@@ -405,7 +405,7 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
                     style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:4px;",
                 ),
                 _ui.div(
-                    _ui.HTML('<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ea6c0a;margin-right:5px;vertical-align:middle;"></span>'),
+                    _ui.HTML('<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#E69F00;margin-right:5px;vertical-align:middle;"></span>'),
                     f"{peak_h}–{peak_h+2}:00 piekstress",
                     style="font-size:0.75rem; color:var(--text-secondary);",
                 ),

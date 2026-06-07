@@ -91,7 +91,7 @@ def _longitudinal_chart(p: str, feature_matrix: pd.DataFrame) -> go.Figure:
     if df.empty:
         return empty_figure("Geen pre-studie stressafwijkingdata")
 
-    pl_colors = {"Calm": "#3b82f6", "Neutral": "#a855f7", "Energy": "#f97316"}
+    pl_colors = {"Calm": "#56B4E9", "Neutral": "#009E73", "Energy": "#E69F00"}
     point_colors = [pl_colors.get(str(pl), ACCENT)
                     for pl in (df["playlist"] if "playlist" in df.columns else ["Energy"] * len(df))]
 
@@ -201,7 +201,7 @@ def _stat_grid(summary: dict, playlist_color: str, app_data=None) -> _ui.Tag:
     bp_nl  = _PLAYLIST_NL.get(bp, bp)
     bp_conf = f"{summary['best_playlist_confidence']}% relatieve voorkeur" if summary["best_playlist_confidence"] else "pre-berekend"
 
-    _PL_COLORS = {"Calm": "#3b82f6", "Neutral": "#a855f7", "Energy": "#f97316"}
+    _PL_COLORS = {"Calm": "#56B4E9", "Neutral": "#009E73", "Energy": "#E69F00"}
     bp_color   = _PL_COLORS.get(bp, "var(--accent)")
 
     weeks     = summary.get("study_weeks", 0)
@@ -235,80 +235,130 @@ def _stat_grid(summary: dict, playlist_color: str, app_data=None) -> _ui.Tag:
     )
 
 
-def _session_table(bio_df: pd.DataFrame) -> _ui.Tag:
-    """Per-session breakdown table."""
+_PAGE_SIZE = 10
+_PL_COLORS_SESSION = {"Calm": "#56B4E9", "Neutral": "#009E73", "Energy": "#E69F00"}
+
+
+def _prepare_session_df(bio_df: pd.DataFrame) -> pd.DataFrame:
+    """Clean and sort the session dataframe; returns empty df if unusable."""
     if bio_df.empty:
-        return _ui.div()
-
+        return pd.DataFrame()
     df = bio_df.copy()
-    needed = {"date", "playlist"}
-    if not needed.issubset(df.columns):
-        return _ui.div()
-
+    if not {"date", "playlist"}.issubset(df.columns):
+        return pd.DataFrame()
     for col in ("mood_before_score", "mood_after_score", "pre_stress_mean", "mood_before", "mood_after"):
         if col not in df.columns:
             df[col] = float("nan") if col.endswith("_score") or col == "pre_stress_mean" else "—"
-
     df["mood_before_score"] = pd.to_numeric(df["mood_before_score"], errors="coerce")
     df["mood_after_score"]  = pd.to_numeric(df["mood_after_score"],  errors="coerce")
     df["pre_stress_mean"]   = pd.to_numeric(df["pre_stress_mean"],   errors="coerce")
     df["_delta"] = df["mood_after_score"] - df["mood_before_score"]
-    df = df.sort_values("date")
+    return df.sort_values("date").reset_index(drop=True)
 
-    header = _ui.tags.thead(
-        _ui.tags.tr(
-            _ui.tags.th("Datum"),
-            _ui.tags.th("Afspeellijst"),
-            _ui.tags.th("Stemming voor"),
-            _ui.tags.th("Stemming na"),
-            _ui.tags.th("Delta"),
-            _ui.tags.th("Pre-stress"),
-            _ui.tags.th("Resultaat"),
-        )
+
+def _delta_cell(delta) -> _ui.Tag:
+    """Delta value + inline proportional bar (Phase 2-B)."""
+    if not pd.notna(delta):
+        return _ui.tags.td("—")
+    delta_str  = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
+    bar_color  = "#22c55e" if delta > 0 else ("#ef4444" if delta < 0 else "#9ca3af")
+    bar_width  = min(abs(delta) / 5 * 100, 100)
+    return _ui.tags.td(
+        _ui.div(
+            _ui.span(delta_str, style=f"font-weight:600; color:{bar_color}; font-size:0.8125rem;"),
+            _ui.div(
+                _ui.div(style=(
+                    f"width:{bar_width:.0f}%; height:3px; border-radius:2px; "
+                    f"background:{bar_color};"
+                )),
+                style=(
+                    "width:56px; height:3px; border-radius:2px; "
+                    "background:var(--bg-elevated); overflow:hidden; margin-top:3px;"
+                ),
+            ),
+        ),
+        style="min-width:70px;",
     )
 
-    rows = []
-    for _, row in df.iterrows():
-        pl_en   = str(row.get("playlist", "—")).strip()
-        pl_nl   = _PLAYLIST_NL.get(pl_en, pl_en)
-        _PL_COLORS = {"Calm": "#3b82f6", "Neutral": "#a855f7", "Energy": "#f97316"}
-        pl_color   = _PL_COLORS.get(pl_en, "var(--accent)")
 
+def _session_table_rows(df_page: pd.DataFrame) -> list:
+    rows = []
+    for _, row in df_page.iterrows():
+        pl_en    = str(row.get("playlist", "—")).strip()
+        pl_nl    = _PLAYLIST_NL.get(pl_en, pl_en)
+        pl_color = _PL_COLORS_SESSION.get(pl_en, "var(--accent)")
         date_str = str(row.get("date", ""))[:10]
         before   = row["mood_before_score"]
         after    = row["mood_after_score"]
         delta    = row["_delta"]
         stress   = row["pre_stress_mean"]
 
-        def _fmt(v, fmt=".0f"):
-            return f"{v:{fmt}}" if pd.notna(v) else "—"
+        def _fmt(v):
+            return f"{v:.0f}" if pd.notna(v) else "—"
 
-        delta_str  = (f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}") if pd.notna(delta) else "—"
-        # Use composite mood (valence × intensity) to determine improvement direction
         improved = mood_is_improvement(
             row.get("mood_before", ""), row["mood_before_score"],
             row.get("mood_after",  ""), row["mood_after_score"],
         )
-        if improved is True:
-            delta_color  = "#22c55e"
-            result_str   = "✓ Verbeterd"
-        elif improved is False:
-            delta_color  = "#ef4444"
-            result_str   = "✗ Gedaald"
-        else:
-            delta_color  = "rgba(255,255,255,0.4)"
-            result_str   = "– Gelijk"
-        result_color = delta_color
+        result_str   = "✓ Verbeterd" if improved is True else ("✗ Gedaald" if improved is False else "– Gelijk")
+        result_color = "#22c55e"     if improved is True else ("#ef4444"  if improved is False else "#9ca3af")
 
         rows.append(_ui.tags.tr(
-            _ui.tags.td(date_str, style="color:var(--text-secondary);"),
+            # Left border coloured by playlist type (Image #8 / #9 pattern)
+            _ui.tags.td(date_str, style=(
+                f"color:var(--text-secondary); border-left:3px solid {pl_color}; padding-left:12px;"
+            )),
             _ui.tags.td(_ui.span(pl_nl, style=f"color:{pl_color}; font-weight:500;")),
             _ui.tags.td(_fmt(before)),
             _ui.tags.td(_fmt(after)),
-            _ui.tags.td(_ui.span(delta_str, style=f"color:{delta_color}; font-weight:600;")),
+            _delta_cell(delta),
             _ui.tags.td(_fmt(stress)),
             _ui.tags.td(_ui.span(result_str, style=f"color:{result_color}; font-size:11px;")),
         ))
+    return rows
+
+
+def _session_table(df: pd.DataFrame, page: int) -> _ui.Tag:
+    """Per-session breakdown table with pagination (Phase 2-B)."""
+    if df.empty:
+        return _ui.div()
+
+    total     = len(df)
+    n_pages   = max(1, (total + _PAGE_SIZE - 1) // _PAGE_SIZE)
+    page      = max(0, min(page, n_pages - 1))
+    start     = page * _PAGE_SIZE
+    end       = min(start + _PAGE_SIZE, total)
+    df_page   = df.iloc[start:end]
+
+    header = _ui.tags.thead(
+        _ui.tags.tr(
+            _ui.tags.th("Datum"),
+            _ui.tags.th("Afspeellijst"),
+            _ui.tags.th("Voor"),
+            _ui.tags.th("Na"),
+            _ui.tags.th("Delta"),
+            _ui.tags.th("Stress"),
+            _ui.tags.th("Resultaat"),
+        )
+    )
+
+    pagination = _ui.div(
+        _ui.input_action_button(
+            "prev_page", "← Vorige",
+            class_="mt-pagination-btn",
+            disabled=page == 0,
+        ),
+        _ui.div(
+            f"Sessie {start + 1}–{end} van {total}",
+            class_="mt-pagination-info",
+        ),
+        _ui.input_action_button(
+            "next_page", "Volgende →",
+            class_="mt-pagination-btn",
+            disabled=page >= n_pages - 1,
+        ),
+        class_="mt-pagination",
+    )
 
     return _ui.div(
         _ui.div("Sessieoverzicht", class_="mt-h2", style="margin-bottom:8px;"),
@@ -318,9 +368,14 @@ def _session_table(bio_df: pd.DataFrame) -> _ui.Tag:
             class_="mt-caption mt-secondary", style="margin-bottom:16px;",
         ),
         _ui.div(
-            _ui.tags.table(header, _ui.tags.tbody(*rows), class_="mt-session-table"),
+            _ui.tags.table(
+                header,
+                _ui.tags.tbody(*_session_table_rows(df_page)),
+                class_="mt-session-table",
+            ),
             style="overflow-x:auto;",
         ),
+        pagination,
         class_="mt-section-card",
     )
 
@@ -409,6 +464,25 @@ def ui():
 @module.server
 def server(input, output, session, app_data: AppData, selected_participant=None):
     selected = selected_participant if selected_participant is not None else reactive.Value("bosbes")
+    _page    = reactive.Value(0)
+
+    @reactive.Effect
+    def _reset_page():
+        selected()
+        _page.set(0)
+
+    @reactive.Effect
+    @reactive.event(input.prev_page)
+    def _go_prev():
+        _page.set(max(0, _page() - 1))
+
+    @reactive.Effect
+    @reactive.event(input.next_page)
+    def _go_next():
+        bio = app_data.session_biometrics.get(selected(), pd.DataFrame())
+        df  = _prepare_session_df(bio)
+        n_pages = max(1, (len(df) + _PAGE_SIZE - 1) // _PAGE_SIZE)
+        _page.set(min(_page() + 1, n_pages - 1))
 
     @reactive.Calc
     def summary():
@@ -422,7 +496,7 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
         n   = len(bio) if not bio.empty else 0
         s   = summary()
 
-        _PL_COLORS = {"Calm": "#2563eb", "Neutral": "#7c3aed", "Energy": "#ea6c0a"}
+        _PL_COLORS = {"Calm": "#56B4E9", "Neutral": "#009E73", "Energy": "#E69F00"}
         bp    = s.get("best_playlist") or "Energy"
         color = _PL_COLORS.get(bp, "var(--text-accent)")
 
@@ -483,7 +557,8 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
     def session_table_ui():
         p   = selected()
         bio = app_data.session_biometrics.get(p, pd.DataFrame())
-        return _session_table(bio)
+        df  = _prepare_session_df(bio)
+        return _session_table(df, _page())
 
     @output
     @render.ui

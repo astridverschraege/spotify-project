@@ -14,7 +14,7 @@ DATA = ROOT / "data"
 
 _PAGE_SIZE   = 25
 _CLASS_NL    = {"calm": "Kalm", "energy": "Energiek", "other": "Overig"}
-_CLASS_COLOR = {"calm": "#1d4ed8", "energy": "#c2560a", "other": "#6b7280"}
+_CLASS_COLOR = {"calm": "#0072B2", "energy": "#b07800", "other": "#6b7280"}
 _CLASS_BG    = {"calm": "rgba(37,99,235,0.10)", "energy": "rgba(234,108,10,0.10)", "other": "rgba(107,114,128,0.10)"}
 _CLASS_BORDER = {"calm": "rgba(37,99,235,0.22)", "energy": "rgba(234,108,10,0.22)", "other": "rgba(107,114,128,0.22)"}
 

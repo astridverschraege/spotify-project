@@ -23,7 +23,7 @@ ROOT = Path(__file__).parent.parent.parent
 DATA = ROOT / "data"
 
 _PLAYLIST_NL = {"Calm": "Kalm", "Neutral": "Neutraal", "Energy": "Energiek"}
-_PL_COLORS   = {"Calm": "#3b82f6", "Neutral": "#a855f7", "Energy": "#f97316"}
+_PL_COLORS   = {"Calm": "#56B4E9", "Neutral": "#009E73", "Energy": "#E69F00"}
 
 
 def _img_b64(path: Path) -> str:

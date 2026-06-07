@@ -95,7 +95,7 @@ _ISO_LABEL_NL = {
 }
 _PLAYLIST_NL   = {"Calm": "KALM", "Neutral": "NEUTRAAL", "Energy": "ENERGIEK"}
 _PLAYLIST_NL_L = {"Calm": "Kalm", "Neutral": "Neutraal", "Energy": "Energiek"}
-_PL_COLORS     = {"Calm": "#3b82f6", "Neutral": "#a855f7", "Energy": "#f97316"}
+_PL_COLORS     = {"Calm": "#56B4E9", "Neutral": "#009E73", "Energy": "#E69F00"}
 
 
 def _ranked_list(recs: dict) -> _ui.Tag:
@@ -247,37 +247,33 @@ def ui():
 
                 ),
 
-                # Rechts — uitvoer
+                # Rechts — uitvoer (Phase 3-B restructure)
                 _ui.div(
                     _ui.output_ui("ridge_ci_note"),
 
-                    # Primary badge — Bayesian (full-width, large)
+                    # 1. Primary badge — Bayesian (historical, large, does not change with sliders)
                     _ui.div(
-                        _ui.div("Bayesiaanse aanbeveling", class_="mt-eyebrow",
+                        _ui.div("Bayesiaanse aanbeveling (historisch)", class_="mt-eyebrow",
                                 style="text-align:center; margin-bottom:8px;"),
                         _ui.output_ui("rec_badge"),
-                        style="margin-bottom:12px;",
+                        style="margin-bottom:8px;",
                     ),
 
-                    # Secondary row — Live Ridge (smaller, aligned right)
+                    # 2. Live Ridge badge (medium — reacts to sliders)
                     _ui.div(
-                        _ui.div(
-                            _ui.span("Live Ridge (nu):", class_="mt-caption mt-secondary",
-                                     style="margin-right:8px; flex-shrink:0;"),
-                            _ui.output_ui("live_rec_panel"),
-                        ),
-                        style=(
-                            "display:flex; align-items:center; justify-content:flex-end; "
-                            "gap:8px; margin-bottom:16px; "
-                            "padding:8px 12px; background:var(--bg-elevated); "
-                            "border-radius:8px; border:1px solid var(--border-subtle);"
-                        ),
+                        _ui.div("Live Ridge (nu)", class_="mt-eyebrow",
+                                style="text-align:center; margin-bottom:6px;"),
+                        _ui.output_ui("live_rec_badge"),
+                        style="margin-bottom:8px;",
                     ),
 
-                    # Salt explanation
+                    # 3. Coherence / explanation note
+                    _ui.output_ui("explanation_callout"),
+
+                    # 4. Salt explanation
                     _ui.output_ui("salt_explanation_ui"),
 
-                    # Verwacht effect aandeel
+                    # 5. Verwacht effect aandeel
                     _ui.div(
                         _ui.div(
                             _ui.span("Verwacht effect aandeel", class_="mt-caption mt-secondary"),
@@ -290,10 +286,10 @@ def ui():
                             class_="mt-caption mt-tertiary",
                             style="margin-top:4px;",
                         ),
-                        style="margin-bottom:24px;",
+                        style="margin-bottom:16px;",
                     ),
 
-                    # Ranglijst posterior
+                    # 6. Ranglijst posterior
                     _ui.div(
                         _ui.div("Posterior ranglijst — verwacht effect aandeel",
                                 class_="mt-caption mt-secondary",
@@ -311,7 +307,19 @@ def ui():
                         style="margin-bottom:16px;",
                     ),
 
-                    # Posterior-grafiek (opvouwbaar)
+                    # 7. Honesty note (moved to collapsible — Phase 3-B)
+                    _ui.HTML(
+                        '<details class="mt-details" style="margin-bottom:16px;">'
+                        '<summary>ℹ Modellimieten</summary>'
+                        '<div class="mt-details-body">'
+                        'Schuifregelaars demonstreren de modelarchitectuur — '
+                        'geen aantoonbaar effect (β ≈ 0, N=6). '
+                        'Bayesiaanse aanbeveling is pre-berekend op historische sessies en '
+                        'verandert niet met de sliders. Live Ridge reageert op de huidige invoer.'
+                        '</div></details>'
+                    ),
+
+                    # 8. Posterior-grafiek (opvouwbaar)
                     _ui.HTML(
                         '<details class="mt-details" style="margin-bottom:16px;">'
                         '<summary>Posterior details (foutenbalken)</summary>'
@@ -323,7 +331,7 @@ def ui():
                     output_widget("posterior_chart"),
                     _ui.HTML('</div></details>'),
 
-                    # Ridge attribution chart (opvouwbaar)
+                    # 9. Ridge attribution chart (opvouwbaar)
                     _ui.HTML(
                         '<details class="mt-details" style="margin-bottom:16px;">'
                         '<summary>Waarom deze aanbeveling? (Ridge-bijdragen)</summary>'
@@ -336,10 +344,7 @@ def ui():
                     output_widget("feature_importance_chart"),
                     _ui.HTML('</div></details>'),
 
-                    # Uitleg
-                    _ui.output_ui("explanation_callout"),
-
-                    # Hoe berekend (opvouwbaar)
+                    # 10. Hoe berekend (opvouwbaar)
                     _ui.div(
                         _ui.input_action_button("expand_calc", "Hoe is dit berekend? ↓",
                                                 class_="mt-expand-trigger"),
@@ -502,6 +507,26 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
                 f"font-family:'Sora',sans-serif; font-weight:700; font-size:0.9375rem; "
                 f"color:{color}; letter-spacing:-0.01em;"
             ),
+        )
+
+    @output
+    @render.ui
+    def live_rec_badge():
+        """Medium badge for Live Ridge — reacts to sliders (Phase 3-B)."""
+        best_pl, preds = live_recommendation()
+        if not preds:
+            return _ui.div(
+                "Live model niet beschikbaar.",
+                class_="mt-caption mt-secondary",
+                style="text-align:center; padding:16px;",
+            )
+        type_name = _PLAYLIST_NL.get(best_pl, best_pl.upper())
+        iso_label = _ISO_LABEL_NL.get(best_pl, "")
+        badge_cls = best_pl.lower()
+        return _ui.div(
+            _ui.div(type_name, class_="mt-rec-live-type"),
+            _ui.div(iso_label, style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px; font-style:italic;"),
+            class_=f"mt-rec-badge-live {badge_cls}",
         )
 
     @output

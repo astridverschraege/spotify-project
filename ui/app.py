@@ -165,6 +165,7 @@ def server(input, output, session):
                             style="width:44px; height:44px; border-radius:6px; flex-shrink:0; "
                                   "background:var(--bg-card); border:1px solid var(--border-subtle);",
                         ),
+                        ui.HTML('<div class="now-playing-wave"><span></span><span></span><span></span></div>'),
                         ui.div(
                             ui.div("Selecteer een afspeellijst", class_="now-playing-title"),
                             ui.div("MoodTune", class_="now-playing-artist"),
@@ -188,7 +189,7 @@ def server(input, output, session):
             "Neutral": "linear-gradient(135deg, #2a1a4a, #160a2f)",
             "Energy":  "linear-gradient(135deg, #4a2a1a, #2f1508)",
         }
-        _PL_COLORS = {"calm": "#2563eb", "neutral": "#7c3aed", "energy": "#ea6c0a"}
+        _PL_COLORS = {"calm": "#56B4E9", "neutral": "#009E73", "energy": "#E69F00"}
 
         # Track count + duration from playlist df
         df = state.get("df")
@@ -219,6 +220,7 @@ def server(input, output, session):
             js_attr,
             ui.div(
                 ui.span("🎵", style=art_style),
+                ui.HTML('<div class="now-playing-wave"><span></span><span></span><span></span></div>'),
                 ui.div(
                     ui.div(
                         ui.span(playlist_nl, class_="now-playing-title",

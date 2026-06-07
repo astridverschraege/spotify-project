@@ -18,13 +18,16 @@ BG_PRIMARY   = BG_BASE
 ACCENT_GREEN = ACCENT
 BORDER       = "rgba(0,0,0,0.08)"
 
+# Okabe-Ito colorblind-safe palette — matches notebooks/ml/*.ipynb
+# Calm=#56B4E9 (sky blue), Neutral=#009E73 (bluish green), Energy=#E69F00 (orange)
 PLAYLIST_COLORS = {
-    "Calm":    "#3b82f6",
-    "Neutral": "#a855f7",
-    "Energy":  "#f97316",
+    "Calm":    "#56B4E9",
+    "Neutral": "#009E73",
+    "Energy":  "#E69F00",
 }
 
-CHART_COLORS = ["#22c55e", "#3b82f6", "#f97316", "#a855f7", "#ec4899", "#eab308"]
+# General Okabe-Ito sequence for non-playlist categorical charts
+CHART_COLORS = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]
 
 # Standard layout to apply to all Plotly charts
 PLOTLY_LAYOUT = dict(
