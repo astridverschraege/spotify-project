@@ -75,8 +75,8 @@ PLOTLY_LAYOUT = dict(
 )
 
 
-def dark_layout(**overrides) -> dict:
-    """Base Plotly layout for the dark theme."""
+def chart_layout(**overrides) -> dict:
+    """Base Plotly layout for all MoodTune charts."""
     base = dict(PLOTLY_LAYOUT)
     base.update(overrides)
     return base
@@ -90,5 +90,5 @@ def empty_figure(message: str = "Geen data beschikbaar") -> go.Figure:
         showarrow=False,
         font=dict(color=TEXT_SECONDARY, size=14),
     )
-    fig.update_layout(**dark_layout(xaxis=dict(visible=False), yaxis=dict(visible=False)))
+    fig.update_layout(**chart_layout(xaxis=dict(visible=False), yaxis=dict(visible=False)))
     return fig

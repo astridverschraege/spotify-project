@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from shiny import module, reactive, render, ui as _ui
 from shinywidgets import output_widget, render_widget
 
-from utils.chart_helpers import GRID_COLOR, PLAYLIST_COLORS, TEXT_SECONDARY, dark_layout
+from utils.chart_helpers import GRID_COLOR, PLAYLIST_COLORS, TEXT_SECONDARY, chart_layout
 
 
 _ISO_FASEN = [
@@ -67,7 +67,7 @@ def _bpm_chart(calm_max: int = 95, energy_min: int = 120) -> go.Figure:
                   annotation_position="right", annotation_font_size=10,
                   annotation_font_color=TEXT_SECONDARY)
 
-    fig.update_layout(**dark_layout(
+    fig.update_layout(**chart_layout(
         xaxis=dict(title="Minuten", range=[0, 30], gridcolor=GRID_COLOR),
         yaxis=dict(title="BPM", range=[35, 185], gridcolor=GRID_COLOR),
         height=380,

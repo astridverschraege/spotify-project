@@ -15,7 +15,7 @@ except ImportError:
 
 from utils.chart_helpers import (
     ACCENT, GRID_COLOR, PLAYLIST_COLORS, STRESS_RED, TEXT_SECONDARY,
-    dark_layout, empty_figure,
+    chart_layout, empty_figure,
 )
 from utils.data_loader import AppData
 
@@ -103,7 +103,7 @@ def _recovery_scatter(df: pd.DataFrame) -> go.Figure:
             ),
         ))
 
-    fig.update_layout(**dark_layout(
+    fig.update_layout(**chart_layout(
         xaxis=dict(title="Sessiedatum", gridcolor=GRID_COLOR),
         yaxis=dict(title="Herstelvoordeel (min)", gridcolor=GRID_COLOR, zeroline=False),
         height=320,
@@ -335,7 +335,7 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
                     _ui.div(caption, class_="mt-caption mt-secondary", style="margin-bottom:6px;"),
                     _ui.div(
                         _ui.img(src=src, style="max-width:100%; border-radius:6px;"),
-                        style="background:#111827; border-radius:10px; padding:12px;",
+                        class_="data-terminal",
                     ),
                 ))
         if not items:

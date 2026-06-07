@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from shiny import module, reactive, render, ui as _ui
 from shinywidgets import output_widget, render_widget
 
-from utils.chart_helpers import ACCENT, GRID_COLOR, PLAYLIST_COLORS, STRESS_RED, TEXT_SECONDARY, ZERO_COLOR, dark_layout, empty_figure
+from utils.chart_helpers import ACCENT, GRID_COLOR, PLAYLIST_COLORS, STRESS_RED, TEXT_SECONDARY, ZERO_COLOR, chart_layout, empty_figure
 from utils.data_loader import PARTICIPANTS, AppData, best_playlist_for
 from utils.mood_valence import mood_is_improvement
 
@@ -68,7 +68,7 @@ def _effectiveness_chart(bio_df: pd.DataFrame) -> go.Figure:
     ))
     fig.add_vline(x=0, line_dash="dash", line_color="rgba(0,0,0,0.18)", line_width=1.5)
 
-    fig.update_layout(**dark_layout(
+    fig.update_layout(**chart_layout(
         xaxis=dict(title="Gem. stemmingsverbetering (pt)", zeroline=False, gridcolor=GRID_COLOR),
         yaxis=dict(gridcolor="rgba(0,0,0,0)"),
         height=200,
@@ -106,7 +106,7 @@ def _longitudinal_chart(p: str, feature_matrix: pd.DataFrame) -> go.Figure:
     ))
     fig.add_hline(y=0, line_dash="dash", line_color=ZERO_COLOR, line_width=1.5)
 
-    fig.update_layout(**dark_layout(
+    fig.update_layout(**chart_layout(
         xaxis=dict(title="Sessienummer", dtick=1, gridcolor=GRID_COLOR),
         yaxis=dict(title="Stressafwijking (stresspunten)", gridcolor=GRID_COLOR, zeroline=False),
         height=260,

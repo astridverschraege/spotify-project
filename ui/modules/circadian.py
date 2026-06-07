@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from shiny import module, reactive, render, ui as _ui
 from shinywidgets import output_widget, render_widget
 
-from utils.chart_helpers import ACCENT, GRID_COLOR, PLAYLIST_COLORS, TEXT_SECONDARY, dark_layout, empty_figure
+from utils.chart_helpers import ACCENT, GRID_COLOR, PLAYLIST_COLORS, TEXT_SECONDARY, chart_layout, empty_figure
 from utils.data_loader import PARTICIPANTS, AppData, expected_stress
 
 
@@ -95,7 +95,7 @@ def _build_circadian_chart(hb_df, session_df) -> go.Figure:
                 customdata=customdata,
             ))
 
-    fig.update_layout(**dark_layout(
+    fig.update_layout(**chart_layout(
         xaxis=dict(
             title="Uur van de dag",
             tickvals=list(range(0, 24, 3)),

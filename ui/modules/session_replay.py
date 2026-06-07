@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from shiny import module, reactive, render, ui as _ui
 from shinywidgets import output_widget, render_widget
 
-from utils.chart_helpers import ACCENT, GRID_COLOR, PLAYLIST_COLORS, STRESS_RED, TEXT_SECONDARY, dark_layout, empty_figure
+from utils.chart_helpers import ACCENT, GRID_COLOR, PLAYLIST_COLORS, STRESS_RED, TEXT_SECONDARY, chart_layout, empty_figure
 from utils.data_loader import PARTICIPANTS, AppData
 from utils.mood_valence import mood_is_improvement
 
@@ -136,7 +136,7 @@ def _biometric_chart(trace_df: pd.DataFrame, playlist: str) -> go.Figure:
         range=[40, 130], showgrid=False,
     ) if has_hr else dict(visible=False, overlaying="y", side="right", showgrid=False)
 
-    fig.update_layout(**dark_layout(
+    fig.update_layout(**chart_layout(
         xaxis=dict(title="Minuten t.o.v. sessiestart", gridcolor=GRID_COLOR, zeroline=False),
         yaxis=dict(title=yaxis1_title, range=[0, 100] if has_stress else None,
                    gridcolor=GRID_COLOR, visible=has_stress),

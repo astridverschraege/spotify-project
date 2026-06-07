@@ -621,7 +621,7 @@ def server(input, output, session, app_data: AppData):
                         class_="mt-caption mt-secondary", style="margin-bottom:6px;"),
                 _ui.div(
                     _ui.img(src=cm_src, style="max-width:420px; border-radius:6px;"),
-                    style="background:#111827; border-radius:10px; padding:12px; display:inline-block;",
+                    class_="data-terminal",
                 ),
             ))
         items.append(_ui.div(
@@ -696,7 +696,7 @@ def server(input, output, session, app_data: AppData):
                 _ui.div(
                     _ui.img(src=shap_src, style="max-width:100%; border-radius:6px;",
                             alt="SHAP beeswarm plot — mood_delta RandomForest"),
-                    style="background:#111827; border-radius:10px; padding:16px;",
+                    class_="data-terminal",
                 ),
                 _ui.div(
                     "Elke stip is een sessie. Positieve SHAP-waarden verhogen de voorspelde stemmingsdelta. "
@@ -726,7 +726,7 @@ def server(input, output, session, app_data: AppData):
                     _ui.div(caption, class_="mt-caption mt-secondary", style="margin-bottom:6px;"),
                     _ui.div(
                         _ui.img(src=src, style="max-width:100%; border-radius:6px;", alt=caption),
-                        style="background:#111827; border-radius:10px; padding:12px;",
+                        class_="data-terminal",
                     ),
                 ))
 
@@ -761,7 +761,7 @@ def server(input, output, session, app_data: AppData):
                     _ui.div(caption, class_="mt-caption mt-secondary", style="margin-bottom:6px;"),
                     _ui.div(
                         _ui.img(src=src, style="max-width:100%; border-radius:6px;", alt=caption),
-                        style="background:#111827; border-radius:10px; padding:12px;",
+                        class_="data-terminal",
                     ),
                 ))
         if dep_items:
@@ -787,7 +787,7 @@ def server(input, output, session, app_data: AppData):
                     _ui.div(caption, class_="mt-caption mt-secondary", style="margin-bottom:6px;"),
                     _ui.div(
                         _ui.img(src=src, style="max-width:100%; border-radius:6px;", alt=caption),
-                        style="background:#111827; border-radius:10px; padding:12px;",
+                        class_="data-terminal",
                     ),
                 ))
         if lc_items:
@@ -820,7 +820,7 @@ def server(input, output, session, app_data: AppData):
                     _ui.div(caption, class_="mt-caption mt-secondary", style="margin-bottom:6px;"),
                     _ui.div(
                         _ui.img(src=src, style="max-width:100%; border-radius:6px;", alt=caption),
-                        style="background:#111827; border-radius:10px; padding:12px;",
+                        class_="data-terminal",
                     ),
                 ))
         if lstm_items:
@@ -857,7 +857,7 @@ def server(input, output, session, app_data: AppData):
                 _ui.div(
                     _ui.img(src=bio_src, style="max-width:100%; border-radius:6px;",
                             alt="Biometrische coëfficiënten posterior"),
-                    style="background:#111827; border-radius:10px; padding:12px;",
+                    class_="data-terminal",
                 ),
                 _ui.div(
                     "Alle biometrische β-coëfficiënten (stress, hartslag, Body Battery, uur) liggen "
@@ -876,7 +876,7 @@ def server(input, output, session, app_data: AppData):
                     _ui.div(caption, class_="mt-caption mt-secondary", style="margin-bottom:6px;"),
                     _ui.div(
                         _ui.img(src=src, style="max-width:100%; border-radius:6px;", alt=caption),
-                        style="background:#111827; border-radius:10px; padding:12px;",
+                        class_="data-terminal",
                     ),
                 ))
         if not items:

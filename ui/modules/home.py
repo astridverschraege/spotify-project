@@ -318,7 +318,7 @@ def ui():
             style="display:flex; gap:16px; margin-bottom:24px; align-items:flex-start;",
         ),
 
-        # Generate button
+        # Generate button — class updated via JS from rec_panel_ui
         _ui.div(
             _ui.input_action_button("generate_btn", "Genereer afspeellijst",
                                     class_="mt-btn-primary"),
@@ -329,6 +329,7 @@ def ui():
         _ui.div(_ui.output_ui("player_ui")),
 
         class_="fade-in",
+        style="padding: 0 var(--page-margin);",
     )
 
 
@@ -577,26 +578,35 @@ def server(input, output, session, app_data: AppData, now_playing=None, selected
         else:
             reason_parts.append(f"Bayesiaans model op basis van alle sessies van {p.capitalize()}.")
 
+        # JS: update generate button color to match recommendation type
+        js_update = _ui.HTML(
+            f'<script>'
+            f'(function(){{'
+            f'  var btn = document.getElementById("home-generate_btn");'
+            f'  if (btn) {{'
+            f'    btn.className = btn.className'
+            f'      .replace(/\\bmt-btn-calm\\b|\\bmt-btn-neutral\\b|\\bmt-btn-energy\\b/g, "")'
+            f'      .trim() + " mt-btn-{badge_cls}";'
+            f'  }}'
+            f'}})();'
+            f'</script>'
+        )
+
         return _ui.div(
+            js_update,
             _ui.div(source_label, class_="mt-eyebrow", style="margin-bottom:12px;"),
             _ui.div(
-                _ui.div(
-                    nl_name.upper(),
-                    style=(
-                        f"font-family:'Sora',sans-serif; font-weight:700; font-size:2rem; "
-                        f"letter-spacing:-0.02em; color:{color}; line-height:1;"
-                    ),
-                ),
-                _ui.div(f"ISO — {iso_dir}", class_="mt-body mt-secondary", style="margin-top:4px;"),
-                style="margin-bottom:10px;",
+                _ui.div(nl_name.upper(), class_=f"mt-rec-hero-type {badge_cls}",
+                        style="font-size:2rem; line-height:1;"),
+                _ui.div(f"ISO — {iso_dir}", class_="mt-rec-hero-iso",
+                        style="margin-top:6px;"),
+                class_=f"mt-rec-badge-hero {badge_cls}",
+                style="margin-bottom:12px;",
             ),
             _ui.div(
                 " ".join(reason_parts),
                 class_="mt-caption mt-secondary",
-                style=(
-                    "border-left:2px solid var(--border-default); padding-left:8px; "
-                    "font-style:italic;"
-                ),
+                style="border-left:2px solid var(--border-default); padding-left:8px; font-style:italic;",
             ),
         )
 
