@@ -247,7 +247,7 @@ def ui():
                     style="font-size:0.8rem;",
                 ),
                 style=(
-                    "background:rgba(255,255,255,0.04); border-left:3px solid var(--accent); "
+                    "background:var(--bg-elevated); border-left:3px solid var(--accent); "
                     "padding:12px 16px; border-radius:6px; max-width:600px; margin:0 auto;"
                 ),
             ),
@@ -454,7 +454,7 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
         delta_color = (
             "#22c55e" if delta_val is not None and delta_val > 0
             else "#ef4444" if delta_val is not None and delta_val < 0
-            else "rgba(255,255,255,0.4)"
+            else "var(--text-tertiary)"
         )
 
         if rows is not None and not rows.empty:
@@ -489,7 +489,7 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
                         "circadian_clear_dot", "×",
                         style=(
                             "background:none; border:none; "
-                            "color:rgba(255,255,255,0.5); font-size:20px; "
+                            "color:var(--text-tertiary); font-size:20px; "
                             "cursor:pointer; line-height:1; padding:0;"
                         ),
                     ),
@@ -582,7 +582,7 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
 
         dev   = stress - exp
         sign  = "+" if dev >= 0 else ""
-        color = "#ef4444" if dev > 5 else ("#22c55e" if dev < -5 else "rgba(255,255,255,0.4)")
+        color = "#ef4444" if dev > 5 else ("#22c55e" if dev < -5 else "var(--text-tertiary)")
 
         if dev > 5:
             meaning = f"Dit betekent: je bent {dev:.1f} stresspunten méér gestresseerd dan gebruikelijk op {hour:02d}:00."

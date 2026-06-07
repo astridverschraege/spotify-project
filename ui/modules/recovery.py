@@ -48,7 +48,7 @@ def _recovery_scatter(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
 
     # Reference line at 0
-    fig.add_hline(y=0, line=dict(color="rgba(255,255,255,0.2)", width=1, dash="dot"))
+    fig.add_hline(y=0, line=dict(color="rgba(0,0,0,0.12)", width=1, dash="dot"))
 
     # Unreliable sessions (faded)
     for pl in ["Calm", "Neutral", "Energy"]:
@@ -104,7 +104,12 @@ def _recovery_scatter(df: pd.DataFrame) -> go.Figure:
         ))
 
     fig.update_layout(**chart_layout(
-        xaxis=dict(title="Sessiedatum", gridcolor=GRID_COLOR),
+        xaxis=dict(
+            title="Sessiedatum",
+            gridcolor=GRID_COLOR,
+            type="date",
+            tickformat="%d %b",
+        ),
         yaxis=dict(title="Herstelvoordeel (min)", gridcolor=GRID_COLOR, zeroline=False),
         height=320,
         margin=dict(l=64, r=32, t=16, b=48),

@@ -659,8 +659,8 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
             icon   = "✗"
             txt    = f"Stemming gedaald ({sign} pt)"
         else:
-            bg     = "rgba(255,255,255,0.05)"
-            border = "rgba(255,255,255,0.15)"
+            bg     = "var(--bg-elevated)"
+            border = "var(--text-tertiary)"
             icon   = "–"
             txt    = "Stemming onveranderd"
         return _ui.div(
