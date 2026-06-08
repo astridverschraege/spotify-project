@@ -678,7 +678,27 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
     @output
     @render_widget
     def longitudinal_chart():
-        return _longitudinal_chart(selected(), app_data.feature_matrix)
+        import plotly.graph_objects as go
+        fig = _longitudinal_chart(selected(), app_data.feature_matrix)
+        fw  = go.FigureWidget(fig)
+
+        def _on_click(trace, points, selector):
+            if not points.point_inds:
+                return
+            idx = points.point_inds[0]
+            cd  = trace.customdata[idx]
+            _selected_lon.set({
+                "date":    str(cd[0]),
+                "pl_nl":   str(cd[1]),
+                "delta":   float(cd[2]) if cd[2] == cd[2] else None,
+                "session": int(cd[3]),
+                "stress":  float(trace.y[idx]),
+            })
+
+        for tr in fw.data:
+            if hasattr(tr, "on_click"):
+                tr.on_click(_on_click)
+        return fw
 
     @output
     @render.ui
