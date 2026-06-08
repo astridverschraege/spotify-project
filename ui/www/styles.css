@@ -182,7 +182,7 @@ html, body {
   top: 64px !important;         /* custom navbar height */
   z-index: 180 !important;
   background: var(--bg-base) !important;
-  padding: 8px var(--page-margin) !important;
+  padding: 4px var(--page-margin) !important;
   border-bottom: 1px solid var(--border-subtle) !important;
   margin-bottom: 0 !important;
   flex-wrap: nowrap !important;
@@ -240,7 +240,7 @@ body > .container-fluid,
 
 .tab-pane {
   background: var(--bg-base) !important;
-  padding: 32px 0 112px !important;
+  padding: 40px 0 120px !important;
 }
 
 /* ---------- Now-Playing Bar ---------- */
@@ -962,7 +962,7 @@ body > .container-fluid,
 
 /* ---------- Section Layout ---------- */
 .mt-section      { padding: 24px var(--page-margin); }
-.mt-section-card { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: 16px; padding: 32px; box-shadow: var(--shadow-sm); }
+.mt-section-card { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: 16px; padding: 32px; box-shadow: var(--shadow-sm); margin-bottom: 16px; }
 
 /* ---------- Hero Section (Science etc) ---------- */
 .mt-hero {

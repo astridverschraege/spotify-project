@@ -409,19 +409,43 @@ def ui():
                     ),
                     style="display:flex; align-items:center; gap:8px; margin-bottom:16px; flex-wrap:wrap;",
                 ),
-                # Training setup collapsible
+                # Training setup collapsible — details from notebooks/ml/1_circadian_ml.ipynb
                 _ui.HTML(
                     '<details class="mt-details" style="margin-bottom:16px;">'
-                    '<summary style="font-size:0.875rem; font-weight:600; cursor:pointer;">Trainingsopzet &amp; hyperparameters</summary>'
-                    '<div class="mt-details-body" style="font-size:0.875rem; color:var(--text-secondary); margin-top:10px; line-height:1.7;">'
-                    '<b>Feature matrix:</b> 28 kenmerken, N=82 sessies (4 deelnemers met biometrische data)<br>'
-                    '<b>Target:</b> mood_delta = mood_after_score − mood_before_score (schaal 1–10)<br>'
-                    '<b>Validatiestrategie:</b> Leave-One-Out kruisvalidatie — elke sessie precies één keer als testset<br>'
-                    '<b>Imputatie:</b> mediane imputatie per fold binnen sklearn Pipeline — voorkomt datalekkage van de testset naar de trainingset<br>'
-                    '<b>Ridge α:</b> geselecteerd via 5-voudige GridSearchCV op log-schaal 0.01–100; optimaal α=1.0<br>'
-                    '<b>Random Forest:</b> n_estimators=200, geen maximale dieptebeperking (max_depth=None)<br>'
-                    '<b>Gradient Boosting:</b> learning_rate=0.1, n_estimators=100, max_depth=3<br>'
-                    '<b>Kenmerken met >50% NaN:</b> uitgesloten via excluded_features.json (per deelnemer bepaald)'
+                    '<summary style="font-size:0.875rem; font-weight:600; cursor:pointer;">'
+                    '▶ Trainingsopzet, lekkage-preventie &amp; hyperparameters (notebook 1/4)'
+                    '</summary>'
+                    '<div class="mt-details-body" style="font-size:0.875rem; color:var(--text-secondary); margin-top:10px; line-height:1.8;">'
+
+                    '<b>Dataset:</b> feature_matrix.csv — 1 rij per luistersessie. '
+                    'Gegenereerd door <code>scripts/analysis/circadian_baseline.py</code>. '
+                    'N=82 sessies van 4 deelnemers met Garmin biometrie (bosbes, kokosnoot, limoen, peer).<br>'
+
+                    '<b>Target:</b> <code>mood_delta = mood_after_score − mood_before_score</code> — '
+                    'zelfgerapporteerde stemming op schaal 1–10 vóór en na de luistersessie.<br>'
+
+                    '<b>Validatiestrategie — LOO-KV:</b> Leave-One-Out kruisvalidatie. '
+                    'Elke sessie wordt exact één keer als testset gebruikt; de overige N-1 sessies trainen het model. '
+                    'Dit is de strengste onbevooroordeelde schatting bij kleine N.<br>'
+
+                    '<b>Lekkage-preventie:</b> MedianImputer zit <em>binnen</em> de sklearn Pipeline, '
+                    'zodat imputatiewaarden uitsluitend op de trainingfold worden berekend. '
+                    'De testset ziet nooit trainingsstatistieken — de correcte volgorde. '
+                    'Kenmerken met >50% NaN per deelnemer worden uitgesloten via <code>excluded_features.json</code>.<br>'
+
+                    '<b>Ridge regressie:</b> α-gevoeligheidsanalyse op log-schaal {0.01, 0.1, 1.0, 10, 100} '
+                    'via gegeneraliseerde kruisvalidatie (GCV). Optimale α=1.0 (sklearn standaard). '
+                    'Bootstrap 95% CI (1000 hersamples op LOO-residuen): R²=[0.18, 0.44].<br>'
+
+                    '<b>Random Forest:</b> n_estimators=200, max_depth=None (onbeperkt), '
+                    'min_samples_leaf=1. Feature importance via gemiddelde impurity-afname (MDI).<br>'
+
+                    '<b>Gradient Boosting:</b> learning_rate=0.1, n_estimators=100, max_depth=3, '
+                    'subsample=1.0. Overfitting-gap=0.71 (train R²=0.82 vs LOO R²=0.11) — model ongeschikt bij N=82.<br>'
+
+                    '<b>Gemengd-effecten (LME):</b> statsmodels MixedLM met random intercept per deelnemer. '
+                    'Modelleert deelnemer-specifieke basislijnen maar vereist ≥20 sessies per persoon voor stabiele random effects.'
+
                     '</div></details>'
                 ),
                 _ui.output_ui("model_table_ui"),
@@ -572,7 +596,42 @@ def ui():
                     style="display:flex; align-items:center; margin-bottom:8px;",
                 ),
                 _ui.div("4.000 MCMC-samples (PyMC/NUTS, 4 chains × 1.000 draws) · 89% geloofwaardigheidsintervallen",
-                        class_="mt-caption mt-secondary", style="margin-bottom:12px;"),
+                        class_="mt-caption mt-secondary", style="margin-bottom:8px;"),
+                # Bayesian model specifics — from notebooks/ml/2_bayesian_recommender.ipynb
+                _ui.HTML(
+                    '<details class="mt-details" style="margin-bottom:16px;">'
+                    '<summary style="font-size:0.875rem; font-weight:600; cursor:pointer;">'
+                    '▶ Modelarchitectuur, sampling &amp; convergentie (notebook 2/4)'
+                    '</summary>'
+                    '<div class="mt-details-body" style="font-size:0.875rem; color:var(--text-secondary); margin-top:10px; line-height:1.8;">'
+
+                    '<b>Modeltype:</b> Hiërarchisch Bayesiaans regressiemodel (PyMC/NUTS). '
+                    'Non-centered parameterisatie: α = μ_α + σ_α × α_offset. '
+                    'Dit voorkomt "funnel"-geometrie die NUTS-divergenties veroorzaakt bij kleine N.<br>'
+
+                    '<b>Deelnemers:</b> 6 totaal. 4 met smartwatchdata (biometrische coëfficiënten actief), '
+                    '2 check-in-only (biometrische coëfficiënten via bio_mask geforceerd naar 0).<br>'
+
+                    '<b>MCMC-instellingen:</b> 4 chains × 1.000 draws, 500 tune-stappen, '
+                    'target_accept=0.90 (NUTS-stappgrootte adaptief). '
+                    'Totaal: 4.000 posterior samples.<br>'
+
+                    '<b>Convergentiecheck:</b> R-hat < 1.01 (chains het eens), '
+                    'ESS_bulk > 400 (voldoende effectieve samples), 0 divergenties.<br>'
+
+                    '<b>Biometrische coëfficiënten:</b> β_stress ≈ 0.00 [HDI: −0.16, +0.16], '
+                    'β_body_battery ≈ 0.00 [−0.27, +0.27], β_hr ≈ 0.00 [−0.18, +0.19]. '
+                    'Alle 89% HDI-intervallen omvatten nul — biometrie heeft <em>geen aantoonbaar effect</em> bij N=82.<br>'
+
+                    '<b>Playlist-effecten (μ_playlist):</b> Per-deelnemer posterior mediaan voor Calm/Neutral/Energy. '
+                    'Populatieniveau HDI omvat nul voor alle types. '
+                    'Per-deelnemer posteriors tonen individuele variatie die betrouwbaarder is dan de populatiegemiddelden.<br>'
+
+                    '<b>Aanbevelingslogica:</b> Best playlist = argmax(posterior mediaan per deelnemer). '
+                    'Grijze CI = onzekerheidsinterval omvat nul = onvoldoende bewijs voor positief effect.'
+
+                    '</div></details>'
+                ),
                 _ui.output_ui("bayes_convergence_ui"),
                 _ui.div(
                     "Populatieniveau: de HDI voor alle afspeellijsteffecten omvat nul — "
@@ -602,23 +661,45 @@ def ui():
                     class_="mt-body mt-secondary", style="margin-bottom:16px;",
                 ),
                 _ui.div(
+                    # Notebook 3: threshold-based arousal score
                     _ui.div(
-                        _ui.div("Aanpak", class_="mt-h3", style="margin-bottom:8px;"),
+                        _ui.span("Notebook 3 — Drempelwaarde (Supervised)", class_="mt-h3",
+                                 style="margin-bottom:6px; display:block;"),
+                        _ui.span("Deterministisch, geen ML", class_="mt-badge",
+                                 style="margin-bottom:10px; display:inline-block; font-size:11px;"),
                         _ui.p(
-                            "K-Means clustering (k=3 vs. BIC-optimaal via GMM) op Spotify audiokenmerken. "
-                            "Gaussiaans Mengselmodel (GMM) valideert clusteraantal. "
-                            "Zie notebook ml_music_classification.ipynb voor de volledige analyse.",
-                            class_="mt-body mt-secondary", style="font-size:0.875rem;",
+                            "Arousal-score = gewogen som van Spotify-kenmerken (energy 35%, tempo 25%, "
+                            "danceability 20%, loudness 10%, valence 10%). "
+                            "MinMaxScaler per deelnemer — normaliseert naar het eigen muziekbereik van die persoon. "
+                            "Drempelwaarde: arousal < 35% → CALM, > 65% → ENERGY, tussenin → OTHER.",
+                            class_="mt-body mt-secondary", style="font-size:0.875rem; margin-bottom:8px;",
+                        ),
+                        _ui.div(
+                            _ui.span("Resultaat: ", style="font-weight:600; color:var(--text-secondary);"),
+                            "Live filtering/speech-tracks (liveness > 0.75, speechiness > 0.66) worden uitgefilterd "
+                            "voor consistente luisterervaring.",
+                            class_="mt-caption mt-tertiary",
                         ),
                         class_="mt-card-elevated", style="padding:16px; flex:1;",
                     ),
+                    # Notebook 4: GMM unsupervised
                     _ui.div(
-                        _ui.div("Status", class_="mt-h3", style="margin-bottom:8px;"),
+                        _ui.span("Notebook 4 — GMM Ongesuperviseerd", class_="mt-h3",
+                                 style="margin-bottom:6px; display:block;"),
+                        _ui.span("Gaussian Mixture Model", class_="mt-badge mt-badge-calm",
+                                 style="margin-bottom:10px; display:inline-block; font-size:11px;"),
                         _ui.p(
-                            "Exploratieve fase. De clusters overlappen sterk met handmatige BPM-drempelwaarden, "
-                            "wat de huidige parameterisatie ondersteunt. "
-                            "Geen productiemodel — directe regelgebaseerde classificatie presteert vergelijkbaar bij N=82.",
-                            class_="mt-body mt-secondary", style="font-size:0.875rem;",
+                            "StandardScaler (μ=0, σ=1) op 6 audiokenmerken — GMM veronderstelt Gaussische verdeling. "
+                            "BIC-sweep k=2..10 bepaalt optimaal clusteraantal. "
+                            "k=3 geforceerd vs. BIC-optimaal vergeleken via silhouette + PCA-scatter. "
+                            "Resultaat: clusters overlappen sterk met handmatige BPM-drempelwaarden → "
+                            "bevestigt de huidige parameterisatie.",
+                            class_="mt-body mt-secondary", style="font-size:0.875rem; margin-bottom:8px;",
+                        ),
+                        _ui.div(
+                            _ui.span("Conclusie: ", style="font-weight:600; color:var(--text-secondary);"),
+                            "Geen productiemodel — regelgebaseerde classificatie presteert vergelijkbaar bij N=82.",
+                            class_="mt-caption mt-tertiary",
                         ),
                         class_="mt-card-elevated", style="padding:16px; flex:1;",
                     ),
