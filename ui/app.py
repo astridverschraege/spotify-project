@@ -459,15 +459,15 @@ def server(input, output, session):
         }
         tab_name = _SECTION_TO_TAB.get(section)
         if tab_name:
-            ui.update_navs("main_nav", selected=tab_name, session=session)
+            ui.update_navset("main_nav", selected=tab_name, session=session)
         if sub:
             if section == "profiel":
                 if sub in ("Resultaten", "Herstelanalyse"):
-                    ui.update_navs("profiel_pills", selected="Sessie-inzichten", session=session)
+                    ui.update_navset("profiel_pills", selected="Sessie-inzichten", session=session)
                 else:
-                    ui.update_navs("profiel_pills", selected=sub, session=session)
+                    ui.update_navset("profiel_pills", selected=sub, session=session)
             elif section == "achtergrond":
-                ui.update_navs("achtergrond_pills", selected=sub, session=session)
+                ui.update_navset("achtergrond_pills", selected=sub, session=session)
 
     # ── Custom navbar: participant selector ───────────────────────────────
     @reactive.Effect

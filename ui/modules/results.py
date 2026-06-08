@@ -485,7 +485,41 @@ def ui():
                     "kleur = afspeellijsttype · klik op een punt voor sessiedetails",
                     class_="mt-caption mt-secondary", style="margin-bottom:16px;",
                 ),
-                output_widget("longitudinal_chart"),
+                _ui.div(
+                    output_widget("longitudinal_chart"),
+                    id="mt-lon-chart-wrapper",
+                ),
+                # JS: forward Plotly click → Shiny input (more reliable than FigureWidget.on_click)
+                _ui.HTML("""<script>
+(function () {
+    function _attachLon() {
+        var wrap = document.getElementById('mt-lon-chart-wrapper');
+        if (!wrap) { setTimeout(_attachLon, 600); return; }
+        var div = wrap.querySelector('.plotly-graph-div');
+        if (!div || !div.on) { setTimeout(_attachLon, 600); return; }
+        if (div._mt_lon_bound) return;
+        div._mt_lon_bound = true;
+        div.on('plotly_click', function (data) {
+            if (!data.points || !data.points.length) return;
+            var pt = data.points[0];
+            var cd = pt.customdata;
+            if (!cd || cd.length < 4) return;
+            if (!window.Shiny) return;
+            Shiny.setInputValue('results-lon_click', {
+                date:    String(cd[0]),
+                pl_nl:   String(cd[1]),
+                delta:   cd[2],
+                session: cd[3],
+                stress:  pt.y,
+            }, {priority: 'event'});
+        });
+    }
+    // Re-attach whenever the chart might be re-rendered
+    var _obs = new MutationObserver(_attachLon);
+    _obs.observe(document.body, {childList: true, subtree: true});
+    _attachLon();
+})();
+</script>"""),
                 _ui.output_ui("lon_session_detail"),
                 _ui.div(
                     "Een dalende trend suggereert dat herhaald gebruik de stressregulatie verbetert.",
@@ -527,6 +561,24 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
         selected()
         _page.set(0)
         _selected_lon.set(None)
+
+    # ── Longitudinal chart click via JS (Shiny.setInputValue) ──────────────
+    @reactive.Effect
+    @reactive.event(input.lon_click)
+    def _on_lon_click():
+        data = input.lon_click()
+        if not isinstance(data, dict):
+            return
+        try:
+            _selected_lon.set({
+                "date":    str(data.get("date", "—")),
+                "pl_nl":   str(data.get("pl_nl", "—")),
+                "delta":   float(data["delta"]) if data.get("delta") == data.get("delta") and data.get("delta") is not None else None,
+                "session": int(data.get("session", 0)),
+                "stress":  float(data.get("stress", 0)),
+            })
+        except (TypeError, ValueError):
+            pass
 
     @reactive.Effect
     @reactive.event(input.prev_page)
@@ -626,27 +678,7 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
     @output
     @render_widget
     def longitudinal_chart():
-        import plotly.graph_objects as go
-        fig = _longitudinal_chart(selected(), app_data.feature_matrix)
-        fw  = go.FigureWidget(fig)
-
-        def _on_click(trace, points, selector):
-            if not points.point_inds:
-                return
-            idx = points.point_inds[0]
-            cd  = trace.customdata[idx]
-            _selected_lon.set({
-                "date":    str(cd[0]),
-                "pl_nl":   str(cd[1]),
-                "delta":   float(cd[2]) if cd[2] == cd[2] else None,
-                "session": int(cd[3]),
-                "stress":  float(trace.y[idx]),
-            })
-
-        for tr in fw.data:
-            if hasattr(tr, "on_click"):
-                tr.on_click(_on_click)
-        return fw
+        return _longitudinal_chart(selected(), app_data.feature_matrix)
 
     @output
     @render.ui
