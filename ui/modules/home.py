@@ -803,8 +803,7 @@ def server(input, output, session, app_data: AppData, now_playing=None, selected
             "confidence":    confidence,
         }
         player_state.set(state)
-        if now_playing is not None:
-            now_playing.set(state)
+        # Intentionally do NOT update now_playing — footer stays as project info
 
     # ── Playlist view ─────────────────────────────────────────────────────
 
