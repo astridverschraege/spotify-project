@@ -185,6 +185,43 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 
+/* ── Emoji scroll-fade ────────────────────────────────────────────────────── */
+(function () {
+  var FADE_END     = 450;  // px of scroll to reach fully transparent (~4-5 wheel ticks)
+  var BASE_OPACITY = 0.16; // matches emojiSpring 100% keyframe in CSS
+  var _prevY       = -1;
+
+  function _applyFade(y) {
+    var el = document.getElementById('home-emoji-bg');
+    if (!el) return;
+    var t = Math.min(1, Math.max(0, y / FADE_END));
+    // Use setProperty('important') to always beat animation-fill-mode:forwards
+    el.style.setProperty('opacity', String(BASE_OPACITY * (1 - t)), 'important');
+  }
+
+  // rAF loop — runs at 60fps, only touches the DOM when scroll position changed.
+  // This is the primary mechanism and works regardless of which element fires scroll.
+  function _tick() {
+    var y = window.scrollY || document.documentElement.scrollTop || 0;
+    if (y !== _prevY) { _prevY = y; _applyFade(y); }
+    requestAnimationFrame(_tick);
+  }
+  requestAnimationFrame(_tick);
+
+  // Scroll event as supplementary trigger (fires even between rAF frames)
+  window.addEventListener('scroll', function () {
+    var y = window.scrollY || document.documentElement.scrollTop || 0;
+    _applyFade(y);
+  }, { passive: true });
+
+  // On any Bootstrap tab shown: scroll to top so emoji is fully visible
+  document.addEventListener('shown.bs.tab', function () {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    _prevY = 0;
+    _applyFade(0);
+  });
+})();
+
 })();
 </script>
 """)
@@ -220,10 +257,9 @@ document.addEventListener('DOMContentLoaded', function () {
                            "aria-expanded": "false"},
                     ),
                     ui.tags.div(
-                        _dropdown_link("Resultaten",        "profiel", "Resultaten"),
-                        _dropdown_link("Sessie-replay",     "profiel", "Sessie-replay"),
                         _dropdown_link("Circadiaans ritme", "profiel", "Circadiaans ritme"),
-                        _dropdown_link("Herstelanalyse",    "profiel", "Herstelanalyse"),
+                        _dropdown_link("Sessie-replay",     "profiel", "Sessie-replay"),
+                        _dropdown_link("Sessie-inzichten",  "profiel", "Sessie-inzichten"),
                         _dropdown_link("Jouw Muziek",       "profiel", "Jouw Muziek"),
                         class_="mt-nav-dropdown-menu",
                         role="menu",
@@ -298,8 +334,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     onclick=f"mtNavTo('profiel','{lbl}'); mtCloseMobileMenu(); return false;",
                 )
                 for lbl in [
-                    "Resultaten", "Sessie-replay", "Circadiaans ritme",
-                    "Herstelanalyse", "Jouw Muziek",
+                    "Circadiaans ritme", "Sessie-replay",
+                    "Sessie-inzichten", "Jouw Muziek",
                 ]
             ],
             ui.tags.hr(class_="mt-mobile-divider"),
@@ -341,10 +377,15 @@ app_ui = ui.page_navbar(
     ui.nav_panel("Home", home.ui("home")),
     ui.nav_panel("Jouw Profiel",
         ui.navset_pill(
-            ui.nav_panel("Resultaten",        results.ui("results")),
-            ui.nav_panel("Sessie-replay",     session_replay.ui("replay")),
             ui.nav_panel("Circadiaans ritme", circadian.ui("circadian")),
-            ui.nav_panel("Herstelanalyse",    recovery.ui("recovery")),
+            ui.nav_panel("Sessie-replay",     session_replay.ui("replay")),
+            ui.nav_panel("Sessie-inzichten",
+                ui.navset_underline(
+                    ui.nav_panel("Resultaten",     results.ui("results")),
+                    ui.nav_panel("Herstelanalyse", recovery.ui("recovery")),
+                    id="inzichten_tabs",
+                ),
+            ),
             ui.nav_panel("Jouw Muziek",       music_browser.ui("music")),
             id="profiel_pills",
         ),
@@ -362,7 +403,19 @@ app_ui = ui.page_navbar(
     title=ui.span(),           # Custom navbar provides the brand
     header=ui.div(
         ui.tags.head(
-            ui.tags.link(rel="icon", type="image/svg+xml", href="logo/MoodTune-logo.svg"),
+            ui.tags.link(
+                rel="icon", type="image/svg+xml",
+                # Inline data URI — bypasses browser favicon caching entirely.
+                # Vector eighth-note path on transparent background.
+                href=(
+                    "data:image/svg+xml,"
+                    "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E"
+                    "%3Cpath fill='%2316a34a' d="
+                    "'M20 2v15.27A5 5 0 1 0 23 21V8h4V2H20z'"
+                    "/%3E"
+                    "%3C/svg%3E"
+                ),
+            ),
             ui.tags.link(rel="stylesheet", href="styles.css"),
             ui.busy_indicators.use(spinners=True, pulse=True),
         ),
@@ -406,7 +459,11 @@ def server(input, output, session):
             ui.update_navs("main_nav", selected=tab_name, session=session)
         if sub:
             if section == "profiel":
-                ui.update_navs("profiel_pills", selected=sub, session=session)
+                if sub in ("Resultaten", "Herstelanalyse"):
+                    ui.update_navs("profiel_pills", selected="Sessie-inzichten", session=session)
+                    ui.update_navs("inzichten_tabs", selected=sub, session=session)
+                else:
+                    ui.update_navs("profiel_pills", selected=sub, session=session)
             elif section == "achtergrond":
                 ui.update_navs("achtergrond_pills", selected=sub, session=session)
 

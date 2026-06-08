@@ -41,7 +41,6 @@ def _effectiveness_chart(bio_df: pd.DataFrame) -> go.Figure:
     counts    = summary["count"].tolist()
     labels_nl = summary["playlist_nl"].tolist()
 
-    # 95% CI = 1.96 × SEM; flag when CI crosses zero
     ci95 = [1.96 * s for s in sems]
     bar_texts = []
     for m, ci, n in zip(means, ci95, counts):
@@ -51,11 +50,21 @@ def _effectiveness_chart(bio_df: pd.DataFrame) -> go.Figure:
         bar_texts.append(f"{sign}{m:.1f} pt  (N={n}){suffix}")
 
     fig = go.Figure()
+
+    # 3.2 Color zones — negative (red tint) and positive (green tint) regions
+    x_max = max(abs(m) for m in means) * 1.6 + 1
+    fig.add_vrect(x0=-x_max, x1=0, fillcolor="rgba(239,68,68,0.04)", line_width=0)
+    fig.add_vrect(x0=0, x1=x_max, fillcolor="rgba(34,197,94,0.04)", line_width=0)
+
+    # Mean bars
     fig.add_trace(go.Bar(
         x=means,
         y=labels_nl,
         orientation="h",
-        marker=dict(color=[PLAYLIST_COLORS.get(p, ACCENT) for p in playlists]),
+        marker=dict(
+            color=[PLAYLIST_COLORS.get(p, ACCENT) for p in playlists],
+            opacity=0.55,
+        ),
         error_x=dict(type="data", array=ci95, color=TEXT_SECONDARY, thickness=1.5, width=6),
         text=bar_texts,
         textposition="outside",
@@ -65,15 +74,46 @@ def _effectiveness_chart(bio_df: pd.DataFrame) -> go.Figure:
             "N=%{customdata} sessies<extra></extra>"
         ),
         customdata=counts,
+        name="Gemiddelde",
+        showlegend=False,
     ))
-    fig.add_vline(x=0, line_dash="dash", line_color="rgba(0,0,0,0.18)", line_width=1.5)
+
+    # 3.2 Individual session dots (jittered along y-axis within each bar)
+    import numpy as np
+    rng = np.random.default_rng(seed=42)
+    for pl, nl in zip(playlists, labels_nl):
+        pl_data = bio_df[bio_df["playlist"] == pl][delta_col].dropna()
+        if pl_data.empty:
+            continue
+        jitter = rng.uniform(-0.2, 0.2, len(pl_data))
+        color  = PLAYLIST_COLORS.get(pl, ACCENT)
+        date_col = bio_df[bio_df["playlist"] == pl]["date"].astype(str).str[:10] if "date" in bio_df.columns else ["—"] * len(pl_data)
+        fig.add_trace(go.Scatter(
+            x=pl_data.values,
+            y=[nl] * len(pl_data),
+            mode="markers",
+            marker=dict(
+                color=color, size=8, opacity=0.85,
+                line=dict(color="rgba(0,0,0,0.2)", width=1),
+                symbol="circle",
+            ),
+            yaxis="y",
+            name=nl,
+            showlegend=False,
+            hovertemplate=(
+                f"<b>{nl}</b> — %{{x:+.1f}} pt<extra></extra>"
+            ),
+            customdata=list(date_col) if hasattr(date_col, '__iter__') else ["—"] * len(pl_data),
+        ))
+
+    fig.add_vline(x=0, line_dash="dash", line_color="rgba(255,255,255,0.18)", line_width=1.5)
 
     fig.update_layout(**chart_layout(
-        xaxis=dict(title="Gem. stemmingsverbetering (pt)", zeroline=False, gridcolor=GRID_COLOR),
+        xaxis=dict(title="Stemmingsverbetering (pt)", zeroline=False, gridcolor=GRID_COLOR, range=[-x_max, x_max]),
         yaxis=dict(gridcolor="rgba(0,0,0,0)"),
-        height=200,
+        height=220,
         margin=dict(l=80, r=160, t=16, b=40),
-        bargap=0.35,
+        bargap=0.4,
     ))
     return fig
 
@@ -92,8 +132,20 @@ def _longitudinal_chart(p: str, feature_matrix: pd.DataFrame) -> go.Figure:
         return empty_figure("Geen pre-studie stressafwijkingdata")
 
     pl_colors = {"Calm": "#56B4E9", "Neutral": "#009E73", "Energy": "#E69F00"}
-    point_colors = [pl_colors.get(str(pl), ACCENT)
-                    for pl in (df["playlist"] if "playlist" in df.columns else ["Energy"] * len(df))]
+    nl_map    = {"Calm": "Kalm", "Neutral": "Neutraal", "Energy": "Energiek"}
+    playlists = df["playlist"].tolist() if "playlist" in df.columns else ["Energy"] * len(df)
+    point_colors = [pl_colors.get(str(pl), ACCENT) for pl in playlists]
+
+    # 3.3 Add date + playlist + mood_delta to customdata for click interactions
+    dates  = df["date"].astype(str).str[:10].tolist() if "date" in df.columns else ["—"] * len(df)
+    deltas = (
+        pd.to_numeric(df["mood_delta"], errors="coerce").tolist()
+        if "mood_delta" in df.columns
+        else [float("nan")] * len(df)
+    )
+    pl_nl  = [nl_map.get(str(pl), str(pl)) for pl in playlists]
+
+    customdata = list(zip(dates, pl_nl, deltas, df["session_number"].tolist()))
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -101,15 +153,22 @@ def _longitudinal_chart(p: str, feature_matrix: pd.DataFrame) -> go.Figure:
         y=df["pre_study_stress_deviation"],
         mode="lines+markers",
         line=dict(color=TEXT_SECONDARY, width=1.5),
-        marker=dict(size=10, color=point_colors, line=dict(width=1.5, color="rgba(0,0,0,0.15)")),
-        hovertemplate="Sessie %{x}: %{y:+.1f} t.o.v. pre-studie basislijn<extra></extra>",
+        marker=dict(size=11, color=point_colors, line=dict(width=1.5, color="rgba(0,0,0,0.15)")),
+        customdata=customdata,
+        hovertemplate=(
+            "<b>Sessie %{customdata[3]}</b> — %{customdata[0]}<br>"
+            "Afspeellijst: %{customdata[1]}<br>"
+            "Stressafwijking: %{y:+.1f} pt<br>"
+            "Stemmingsdelta: %{customdata[2]:+.1f} pt<br>"
+            "<i>Klik voor details</i><extra></extra>"
+        ),
     ))
     fig.add_hline(y=0, line_dash="dash", line_color=ZERO_COLOR, line_width=1.5)
 
     fig.update_layout(**chart_layout(
         xaxis=dict(title="Sessienummer", dtick=1, gridcolor=GRID_COLOR),
         yaxis=dict(title="Stressafwijking (stresspunten)", gridcolor=GRID_COLOR, zeroline=False),
-        height=260,
+        height=280,
         margin=dict(l=80, r=48, t=16, b=40),
         showlegend=False,
     ))
@@ -334,10 +393,10 @@ def _session_table(df: pd.DataFrame, page: int) -> _ui.Tag:
         _ui.tags.tr(
             _ui.tags.th("Datum"),
             _ui.tags.th("Afspeellijst"),
-            _ui.tags.th("Voor"),
-            _ui.tags.th("Na"),
+            _ui.tags.th("Stemming voor"),
+            _ui.tags.th("Stemming na"),
             _ui.tags.th("Delta"),
-            _ui.tags.th("Stress"),
+            _ui.tags.th("Pre-stress"),
             _ui.tags.th("Resultaat"),
         )
     )
@@ -387,10 +446,11 @@ def _session_table(df: pd.DataFrame, page: int) -> _ui.Tag:
 @module.ui
 def ui():
     return _ui.div(
-        # Wrapped-hero koptekst
+        # Hero — transparent, emoji shows through from body-level background
         _ui.div(
             _ui.output_ui("results_headline"),
-            class_="mt-wrapped-hero",
+            class_="mt-page-hero",
+            style="padding:0;",
         ),
 
         # Statistiekenraster
@@ -399,41 +459,36 @@ def ui():
             style="padding:0 var(--page-margin);",
         ),
 
-        # Grafiek afspeellijsteffectiviteit
+        # Grafiek afspeellijsteffectiviteit (3.2 — beeswarm over bar)
         _ui.div(
             _ui.div(
                 _ui.div("Stemmingsverbetering per afspeellijsttype", class_="mt-h2",
-                        style="margin-bottom:8px;"),
-                _ui.div("Gemiddelde stemmingsdelta (na − voor) per afspeellijsttype",
-                        class_="mt-caption mt-secondary", style="margin-bottom:4px;"),
-                output_widget("effectiveness_chart"),
+                        style="margin-bottom:6px;"),
                 _ui.div(
-                    "Foutbalken = 95% betrouwbaarheidsinterval (1.96 × SEM). "
-                    "⚠ CI omvat 0 = onvoldoende data voor positief effect. "
-                    "Hover voor N sessies.",
-                    class_="mt-caption mt-secondary",
-                    style="margin-top:8px; font-style:italic;",
+                    "Elke stip = één sessie. De balk = gemiddelde. Foutbalken = 95% betrouwbaarheidsinterval.",
+                    class_="mt-caption mt-secondary", style="margin-bottom:16px;",
                 ),
+                output_widget("effectiveness_chart"),
                 _ui.output_ui("chart_footnote"),
                 class_="mt-section-card",
             ),
             style="padding:24px var(--page-margin) 0;",
         ),
 
-        # Longitudinale stresstrend
+        # Longitudinale stresstrend (3.3 — clickable)
         _ui.div(
             _ui.div(
                 _ui.div("Stressontwikkeling over de studieperiode", class_="mt-h2",
-                        style="margin-bottom:8px;"),
+                        style="margin-bottom:6px;"),
                 _ui.div(
                     "Stressafwijking t.o.v. pre-studie basislijn per sessie · "
-                    "kleur = afspeellijsttype (blauw=kalm, paars=neutraal, oranje=energiek)",
+                    "kleur = afspeellijsttype · klik op een punt voor sessiedetails",
                     class_="mt-caption mt-secondary", style="margin-bottom:16px;",
                 ),
                 output_widget("longitudinal_chart"),
+                _ui.output_ui("lon_session_detail"),
                 _ui.div(
-                    "Een dalende trend suggereert dat herhaald gebruik de stressregulatie verbetert. "
-                    "Hoge variatie of een stijgende trend duidt op grote dag-tot-dag fluctuatie.",
+                    "Een dalende trend suggereert dat herhaald gebruik de stressregulatie verbetert.",
                     class_="mt-caption mt-secondary",
                     style="margin-top:8px; font-style:italic;",
                 ),
@@ -442,18 +497,18 @@ def ui():
             style="padding:16px var(--page-margin) 0;",
         ),
 
-        # Sessieoverzicht tabel
+        # Sessieoverzicht tabel (3.4)
         _ui.div(
+            _ui.output_ui("best_session_callout"),
             _ui.output_ui("session_table_ui"),
             style="padding:16px var(--page-margin) 0;",
         ),
 
-        # Eerlijk beeld: betekenis van de resultaten
+        # Persoonlijk beeld (3.5)
         _ui.div(
             _ui.output_ui("honest_framing_ui"),
-            style="padding:16px var(--page-margin) 0;",
+            style="padding:16px var(--page-margin) 32px;",
         ),
-
     )
 
 
@@ -463,13 +518,15 @@ def ui():
 
 @module.server
 def server(input, output, session, app_data: AppData, selected_participant=None):
-    selected = selected_participant if selected_participant is not None else reactive.Value("bosbes")
-    _page    = reactive.Value(0)
+    selected         = selected_participant if selected_participant is not None else reactive.Value("bosbes")
+    _page            = reactive.Value(0)
+    _selected_lon    = reactive.Value(None)   # clicked longitudinal session
 
     @reactive.Effect
     def _reset_page():
         selected()
         _page.set(0)
+        _selected_lon.set(None)
 
     @reactive.Effect
     @reactive.event(input.prev_page)
@@ -497,8 +554,11 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
         s   = summary()
 
         _PL_COLORS = {"Calm": "#56B4E9", "Neutral": "#009E73", "Energy": "#E69F00"}
+        _EMOJI     = {"bosbes": "🫐", "kokosnoot": "🥥", "limoen": "🍋",
+                      "peer": "🍐", "kiwi": "🥝", "watermeloen": "🍉"}
         bp    = s.get("best_playlist") or "Energy"
         color = _PL_COLORS.get(bp, "var(--text-accent)")
+        emoji = _EMOJI.get(p, "🎵")
 
         mood_hero = _ui.div()
         if s.get("avg_mood_lift") is not None:
@@ -519,11 +579,27 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
                 style="margin-top:16px;",
             )
 
-        return _ui.TagList(
-            _ui.div(f"R.E.M.-profiel van {p.capitalize()}", class_="mt-h1"),
-            _ui.div(f"{n} sessies · Project R.E.M.", class_="mt-body mt-secondary",
-                    style="margin-top:6px;"),
-            mood_hero,
+        # 3.1 Emoji background
+        return _ui.div(
+            _ui.div(
+                emoji,
+                style=(
+                    "position:absolute; font-size:12rem; opacity:0.07; "
+                    "top:50%; left:50%; transform:translate(-50%,-50%); "
+                    "pointer-events:none; user-select:none;"
+                ),
+            ),
+            _ui.div(
+                _ui.div(f"R.E.M.-profiel van {p.capitalize()}", class_="mt-h1"),
+                _ui.div(f"{n} sessies · Project R.E.M.", class_="mt-body mt-secondary",
+                        style="margin-top:6px;"),
+                mood_hero,
+                style="position:relative; z-index:1;",
+            ),
+            style=(
+                "position:relative; overflow:hidden; text-align:center; "
+                "padding:80px var(--page-margin) 64px;"
+            ),
         )
 
     @output
@@ -550,7 +626,87 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
     @output
     @render_widget
     def longitudinal_chart():
-        return _longitudinal_chart(selected(), app_data.feature_matrix)
+        import plotly.graph_objects as go
+        fig = _longitudinal_chart(selected(), app_data.feature_matrix)
+        fw  = go.FigureWidget(fig)
+
+        def _on_click(trace, points, selector):
+            if not points.point_inds:
+                return
+            idx = points.point_inds[0]
+            cd  = trace.customdata[idx]
+            _selected_lon.set({
+                "date":    str(cd[0]),
+                "pl_nl":   str(cd[1]),
+                "delta":   float(cd[2]) if cd[2] == cd[2] else None,
+                "session": int(cd[3]),
+                "stress":  float(trace.y[idx]),
+            })
+
+        for tr in fw.data:
+            if hasattr(tr, "on_click"):
+                tr.on_click(_on_click)
+        return fw
+
+    @output
+    @render.ui
+    def lon_session_detail():
+        sel_s = _selected_lon()
+        if sel_s is None:
+            return _ui.div()
+        delta_str = f"{sel_s['delta']:+.1f} pt" if sel_s.get("delta") is not None else "—"
+        delta_color = (
+            "#22c55e" if sel_s.get("delta") and sel_s["delta"] > 0
+            else "#ef4444" if sel_s.get("delta") and sel_s["delta"] < 0
+            else "var(--text-tertiary)"
+        )
+        sign = "+" if sel_s["stress"] >= 0 else ""
+        return _ui.div(
+            _ui.div(
+                _ui.span(f"Sessie {sel_s['session']} — {sel_s['date']}", style="font-weight:600;"),
+                _ui.span(f"  ·  {sel_s['pl_nl']}", style="color:var(--text-secondary);"),
+                style="margin-bottom:6px;",
+            ),
+            _ui.div(
+                _ui.span("Stressafwijking: ", style="color:var(--text-secondary); font-size:0.875rem;"),
+                _ui.span(f"{sign}{sel_s['stress']:+.1f} pt t.o.v. pre-studie basislijn",
+                         style="font-weight:600; font-size:0.875rem;"),
+                _ui.span("  |  Stemmingsdelta: ", style="color:var(--text-secondary); font-size:0.875rem;"),
+                _ui.span(delta_str, style=f"font-weight:600; color:{delta_color}; font-size:0.875rem;"),
+            ),
+            class_="mt-callout",
+            style="margin-top:12px;",
+        )
+
+    @output
+    @render.ui
+    def best_session_callout():
+        """3.4 — Highlight the session with the highest mood delta."""
+        p   = selected()
+        bio = app_data.session_biometrics.get(p, pd.DataFrame())
+        df  = _prepare_session_df(bio)
+        if df.empty or "_delta" not in df.columns:
+            return _ui.div()
+        best = df.loc[df["_delta"].idxmax()]
+        if pd.isna(best["_delta"]) or best["_delta"] <= 0:
+            return _ui.div()
+        pl_en    = str(best.get("playlist", "—")).strip()
+        pl_nl    = _PLAYLIST_NL.get(pl_en, pl_en)
+        pl_color = _PL_COLORS_SESSION.get(pl_en, "var(--accent)")
+        sign     = "+" if best["_delta"] >= 0 else ""
+        return _ui.div(
+            _ui.span("★ Beste sessie: ", style="font-weight:700; color:var(--accent);"),
+            _ui.span(str(best.get("date", ""))[:10], style="font-weight:600;"),
+            _ui.span(f"  ·  ", style="color:var(--text-tertiary);"),
+            _ui.span(pl_nl, style=f"color:{pl_color}; font-weight:600;"),
+            _ui.span(f"  ·  stemmingsdelta {sign}{best['_delta']:.1f} pt",
+                     style="color:var(--text-secondary);"),
+            style=(
+                "display:flex; align-items:center; flex-wrap:wrap; gap:4px; "
+                "padding:10px 16px; background:var(--bg-elevated); "
+                "border-radius:8px; margin-bottom:12px; font-size:0.875rem;"
+            ),
+        )
 
     @output
     @render.ui
@@ -563,55 +719,66 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
     @output
     @render.ui
     def honest_framing_ui():
+        """3.5 — Personal, data-driven interpretation."""
         p   = selected()
         bio = app_data.session_biometrics.get(p, pd.DataFrame())
         if bio.empty:
             return _ui.div()
-        delta_vals = (
-            pd.to_numeric(bio["mood_after_score"],  errors="coerce") -
-            pd.to_numeric(bio["mood_before_score"], errors="coerce")
-        ).dropna()
+
+        if "mood_before_score" not in bio.columns or "mood_after_score" not in bio.columns:
+            return _ui.div()
+
+        bio2 = bio.copy()
+        bio2["_delta"] = (
+            pd.to_numeric(bio2["mood_after_score"],  errors="coerce") -
+            pd.to_numeric(bio2["mood_before_score"], errors="coerce")
+        )
+        delta_vals = bio2["_delta"].dropna()
         if delta_vals.empty:
             return _ui.div()
-        avg = delta_vals.mean()
-        std = delta_vals.std()
-        n   = len(delta_vals)
-        sign = "+" if avg >= 0 else ""
 
-        # Find best playlist by mean delta for this participant
-        best_pl_str = ""
-        if "playlist" in bio.columns and "mood_before_score" in bio.columns and "mood_after_score" in bio.columns:
-            bio2 = bio.copy()
-            bio2["_delta"] = (
-                pd.to_numeric(bio2["mood_after_score"],  errors="coerce") -
-                pd.to_numeric(bio2["mood_before_score"], errors="coerce")
-            )
-            pl_avgs = bio2.groupby("playlist")["_delta"].mean().dropna()
+        n   = len(delta_vals)
+        avg = delta_vals.mean()
+
+        # % of sessions where mood improved (delta > 0)
+        pct_improved = (delta_vals > 0).mean() * 100
+
+        # Best playlist by mean delta
+        best_pl_nl  = "—"
+        best_val    = None
+        n_best      = 0
+        if "playlist" in bio2.columns:
+            pl_avgs = bio2.groupby("playlist")["_delta"].agg(["mean", "count"]).dropna(subset=["mean"])
             if not pl_avgs.empty:
-                best_pl_en = pl_avgs.idxmax()
+                best_pl_en = pl_avgs["mean"].idxmax()
                 best_pl_nl = _PLAYLIST_NL.get(best_pl_en, best_pl_en)
-                best_val   = pl_avgs[best_pl_en]
-                best_sign  = "+" if best_val >= 0 else ""
-                best_pl_str = (
-                    f" Hoogste gemiddelde stemmingswinst voor {p.capitalize()}: "
-                    f"{best_pl_nl} ({best_sign}{best_val:.1f} pt)."
-                )
+                best_val   = pl_avgs.loc[best_pl_en, "mean"]
+                n_best     = int(pl_avgs.loc[best_pl_en, "count"])
+
+        # Personalized observation
+        if avg > 1.5:
+            observation = "Dat is een opvallend sterk effect voor een muziekinterventie."
+        elif avg > 0:
+            observation = "Een positief patroon — de variatie per sessie is groot, maar de richting klopt."
+        else:
+            observation = "De data laat een gemengd beeld zien. De variatie per sessie is groot."
+
+        best_str = (
+            f"{best_pl_nl} ({best_val:+.1f} pt gem. · {n_best} sessies)"
+            if best_val is not None else "—"
+        )
 
         return _ui.div(
-            _ui.div("Wat betekent dit?", class_="mt-h3", style="margin-bottom:8px;"),
-            _ui.div(
-                f"Over {n} sessies gemiddeld: {sign}{avg:.1f} pt ± {std:.1f}.{best_pl_str}",
+            _ui.div("Wat betekent dit voor jou?", class_="mt-h3", style="margin-bottom:12px;"),
+            _ui.p(
+                f"{p.capitalize()} reageerde het best op {best_pl_nl}-muziek ({best_str}). "
+                f"Van de {n} sessies verbeterde de stemming in {pct_improved:.0f}% van de gevallen. "
+                f"{observation}",
                 class_="mt-body",
-            ),
-            _ui.div(
-                "Het beste ML-model (Ridge regressie, zie Model & Data voor actuele R² en Bootstrap CI) "
-                "verklaart een deel van de stemmingsvariatie — maar N=82 is exploratief. "
-                "Patronen zijn richtinggevend, geen bewijs.",
-                class_="mt-body mt-secondary",
-                style="margin-top:6px;",
+                style="margin:0;",
             ),
             class_="mt-section-card",
-            style="border-left:4px solid var(--accent); padding:16px 20px;",
+            style="border-left:4px solid var(--accent); padding:20px 24px;",
         )
 
     @output

@@ -161,16 +161,16 @@ def _ranked_list(recs: dict) -> _ui.Tag:
 @module.ui
 def ui():
     return _ui.div(
-        # Koptekst
+        # Page hero — aligns to home page pattern
         _ui.div(
-            _ui.div("Bayesiaanse Aanbevelingsmotor", class_="mt-h1"),
+            _ui.div("Muziekadvies", class_="mt-h1"),
             _ui.p(
-                "Verken hoe het hiërarchische Bayesiaanse model playlist-aanbevelingen maakt per deelnemer. "
-                "De schuifregelaars geven context — de aanbeveling zelf is pre-berekend op historische sessies.",
+                "Verken hoe het Bayesiaanse model playlist-aanbevelingen maakt op basis van jouw biometrie. "
+                "De aanbeveling is pre-berekend op historische sessies — de invoer geeft live context.",
                 class_="mt-body mt-secondary",
-                style="margin-top:8px;",
+                style="margin-top:8px; max-width:560px; margin-left:auto; margin-right:auto;",
             ),
-            style="text-align:center; padding:48px var(--page-margin) 32px;",
+            class_="mt-page-hero",
         ),
 
         # Twee kolommen: vaste linkerbreedte, rechts vult aan

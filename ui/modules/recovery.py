@@ -143,22 +143,39 @@ def _stat_card(label: str, value: str, sub: str = "", color: str = "var(--accent
 @module.ui
 def ui():
     return _ui.div(
-        # Header
+        # Page hero — aligns to home page pattern
         _ui.div(
             _ui.div(
                 _ui.span("Herstelanalyse", class_="mt-h1"),
-                _ui.span("RQ1 · RQ2", class_="rq-badge"),
-                style="display:inline-flex; align-items:center; gap:8px;",
+                _ui.span("RQ1 · RQ2", class_="rq-badge", style="vertical-align:middle;"),
+                style="display:inline-flex; align-items:center; gap:8px; justify-content:center;",
             ),
             _ui.p(
                 "Herstelt het lichaam sneller als je naar muziek luistert? "
                 "Herstelvoordeel = verwachte τ (basislijn) − werkelijke τ (sessie). "
                 "Positief = sneller herstel.",
                 class_="mt-body mt-secondary",
-                style="margin-top:8px; max-width:640px;",
+                style="margin-top:8px; max-width:560px; margin-left:auto; margin-right:auto;",
             ),
-            class_="mt-wrapped-hero",
-            style="margin-bottom:24px;",
+            class_="mt-page-hero",
+        ),
+
+        # 4.1 "Hoe lees ik dit?" uitleg
+        _ui.div(
+            _ui.HTML(
+                '<details class="mt-details" style="margin-bottom:8px;">'
+                '<summary style="font-size:0.875rem; font-weight:600; cursor:pointer;">Hoe lees ik dit?</summary>'
+                '<div class="mt-details-body" style="font-size:0.875rem; color:var(--text-secondary); margin-top:8px; line-height:1.7;">'
+                '<b>Herstelvoordeel (min):</b> Hoeveel minuten sneller jij herstelde na een muziekluistersessie, '
+                'vergeleken met hoe lang herstel normaal duurt op dat tijdstip (circadiane basislijn). '
+                'Positief = muziek hielp sneller te herstellen.<br>'
+                '<b>Betrouwbare sessies:</b> Alleen sessies waarbij het wiskundige herstelmodel goed paste (R²>0.05) '
+                'én de stressmeting hoog genoeg was om herstel te kunnen meten.<br>'
+                '<b>p-waarde:</b> De statistische kans dat het gemeten voordeel puur door toeval is. '
+                'Kleiner dan 0.05 = statistisch significant (maar N is klein — voorzichtig interpreteren).'
+                '</div></details>'
+            ),
+            style="padding:0 var(--page-margin) 8px;",
         ),
 
         # Stat row
@@ -172,8 +189,8 @@ def ui():
             _ui.div(
                 _ui.div("Herstelvoordeel per sessie", class_="mt-h2", style="margin-bottom:8px;"),
                 _ui.div(
-                    "Grote gevulde stippen = betrouwbare sessies (r²>0.05 én pre_stress≥asymptoot). "
-                    "Holle stippen = lage modelfit, minder betrouwbaar.",
+                    "Grote gevulde stippen = betrouwbare sessies (R²>0.05 én pre-stress hoog genoeg). "
+                    "Holle stippen = lage modelfit — toon als referentie, niet als meting.",
                     class_="mt-caption mt-secondary", style="margin-bottom:16px;",
                 ),
                 output_widget("recovery_chart"),
@@ -221,11 +238,19 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
 
     @reactive.Calc
     def _participant_data():
-        p = sel()
+        p  = sel()
         rf = app_data.recovery_features
+        if rf is None:
+            return pd.DataFrame()
+        if not hasattr(rf, "empty"):
+            return pd.DataFrame()
         if rf.empty or "participant" not in rf.columns:
             return pd.DataFrame()
-        return rf[rf["participant"] == p].copy()
+        df = rf[rf["participant"] == p].copy()
+        # Normalise column name: tau_advantage → advantage
+        if "advantage" not in df.columns and "tau_advantage" in df.columns:
+            df = df.rename(columns={"tau_advantage": "advantage"})
+        return df
 
     def _group_stats():
         """Compute group-wide recovery stats across all participants from the loaded data."""
@@ -278,19 +303,47 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
             p_sub = "scipy niet beschikbaar"
 
         return _ui.div(
-            _stat_card(f"Gem. herstelvoordeel ({sel().capitalize()})", adv_str,
-                       f"betrouwbare sessies (n={n_reliable})", color=adv_color),
-            _stat_card("Geldige sessies", str(n_total), "deelnemer · r²>0.05 filter"),
-            _stat_card("Betrouwbaar", f"{n_reliable}/{n_total}",
-                       "pre_stress ≥ asymptoot + r²>0.05"),
-            _stat_card("p-waarde (groep)", p_str, p_sub, color=TEXT_SECONDARY),
+            _stat_card(
+                "Gem. herstelvoordeel",
+                adv_str,
+                f"minuten sneller herstel dan basislijn · {n_reliable} betrouwbare sessies",
+                color=adv_color,
+            ),
+            _stat_card(
+                "Geldige sessies",
+                str(n_total),
+                "sessies met voldoende stressdata (R²>0.05)",
+            ),
+            _stat_card(
+                "Betrouwbare sessies",
+                f"{n_reliable}/{n_total}",
+                "herstelcurve past én pre-stress hoog genoeg",
+            ),
+            _stat_card(
+                "p-waarde (groep)",
+                p_str,
+                "kans dat voordeel door toeval is · t-test vs. 0 min",
+                color=TEXT_SECONDARY,
+            ),
             class_="mt-recovery-stat-row",
         )
 
     @output
     @render_widget
     def recovery_chart():
-        return _recovery_scatter(_participant_data())
+        df = _participant_data()
+        if df.empty:
+            return empty_figure(
+                "Hersteldata niet beschikbaar voor deze deelnemer. "
+                "Herstelanalyse vereist stresstraces met een betrouwbare exponentiële herstelcurve."
+            )
+        if "advantage" not in df.columns:
+            available = ", ".join(df.columns.tolist()[:8])
+            return empty_figure(
+                f"Kolom 'advantage' ontbreekt. Beschikbare kolommen: {available}. "
+                "Controleer of recovery_features correct is geladen."
+            )
+        return _recovery_scatter(df)
 
     @output
     @render.ui
