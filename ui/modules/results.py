@@ -315,13 +315,23 @@ def _prepare_session_df(bio_df: pd.DataFrame) -> pd.DataFrame:
     return df.sort_values("date").reset_index(drop=True)
 
 
-def _delta_cell(delta) -> _ui.Tag:
-    """Delta value + inline proportional bar (Phase 2-B)."""
+def _delta_cell(delta, improved: "bool | None" = None) -> _ui.Tag:
+    """Delta value + inline proportional bar.
+
+    Color is driven by whether the mood direction was an improvement
+    (per mood_is_improvement), not by the raw sign of the delta — because
+    some emotion scales are inverted (lower score = better).
+    """
     if not pd.notna(delta):
         return _ui.tags.td("—")
-    delta_str  = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
-    bar_color  = "#22c55e" if delta > 0 else ("#ef4444" if delta < 0 else "#9ca3af")
-    bar_width  = min(abs(delta) / 5 * 100, 100)
+    delta_str = f"+{delta:.1f}" if delta >= 0 else f"{delta:.1f}"
+    if improved is True:
+        bar_color = "#22c55e"
+    elif improved is False:
+        bar_color = "#ef4444"
+    else:
+        bar_color = "#9ca3af" if delta == 0 else ("#22c55e" if delta > 0 else "#ef4444")
+    bar_width = min(abs(delta) / 5 * 100, 100)
     return _ui.tags.td(
         _ui.div(
             _ui.span(delta_str, style=f"font-weight:600; color:{bar_color}; font-size:0.8125rem;"),
@@ -370,7 +380,7 @@ def _session_table_rows(df_page: pd.DataFrame) -> list:
             _ui.tags.td(_ui.span(pl_nl, style=f"color:{pl_color}; font-weight:500;")),
             _ui.tags.td(_fmt(before)),
             _ui.tags.td(_fmt(after)),
-            _delta_cell(delta),
+            _delta_cell(delta, improved),
             _ui.tags.td(_fmt(stress)),
             _ui.tags.td(_ui.span(result_str, style=f"color:{result_color}; font-size:11px;")),
         ))

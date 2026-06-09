@@ -58,9 +58,9 @@ def _posterior_chart(recs: dict) -> go.Figure:
                         for m, lo in zip(means, ci_low)],
             array=[(hi - m) / total * 100 if total > 0 else 0
                    for m, hi in zip(means, ci_high)],
-            color=TEXT_SECONDARY,
-            thickness=1.5,
-            width=6,
+            color="rgba(255,255,255,0.45)",
+            thickness=2.5,
+            width=10,
         ),
         text=[f"{p:.0f}%{'  ⚠' if u else ''}" for p, u in zip(pcts, uncertain)],
         textposition="outside",
@@ -69,12 +69,13 @@ def _posterior_chart(recs: dict) -> go.Figure:
     ))
 
     fig.add_vline(x=0, line=dict(color="rgba(0,0,0,0.15)", width=1, dash="dot"))
+    x_max = max(pcts) * 1.45 if any(p > 0 for p in pcts) else 60
     fig.update_layout(**chart_layout(
-        xaxis=dict(title="Relatieve voorkeur (%)", range=[0, 125], gridcolor=GRID_COLOR),
+        xaxis=dict(title="Relatieve voorkeur (%)", range=[0, x_max], gridcolor=GRID_COLOR),
         yaxis=dict(gridcolor="rgba(0,0,0,0)"),
-        height=200,
-        margin=dict(l=80, r=32, t=16, b=40),
-        bargap=0.35,
+        height=300,
+        margin=dict(l=90, r=32, t=16, b=48),
+        bargap=0.38,
     ))
     return fig
 
@@ -193,7 +194,7 @@ def ui():
 
                 class_="mt-section-card",
             ),
-            style="padding:0 var(--page-margin) 24px;",
+            style="padding:0 var(--page-margin) 56px;",
         ),
 
         # ── Sectie 2: Verwachte stemmingseffecten (posteriors) ──────────────
@@ -217,7 +218,7 @@ def ui():
                 output_widget("posterior_chart"),
                 class_="mt-section-card",
             ),
-            style="padding:0 var(--page-margin) 24px;",
+            style="padding:0 var(--page-margin) 56px;",
         ),
 
         # ── Sectie 3: Simuleer jouw situatie (live Ridge demo) ──────────────
@@ -302,6 +303,7 @@ def ui():
                                 style="margin-bottom:16px;",
                             ),
                             _ui.output_ui("live_rec_badge"),
+                            _ui.output_ui("live_confidence_strip"),
 
                             _ui.div(
                                 _ui.div("Bijdrage per kenmerk", class_="mt-h3",
@@ -470,6 +472,47 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
             _ui.div(type_name, class_="mt-rec-live-type"),
             _ui.div(iso_label, style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px; font-style:italic;"),
             class_=f"mt-rec-badge-live {badge_cls}",
+        )
+
+    @output
+    @render.ui
+    def live_confidence_strip():
+        _, preds = live_recommendation()
+        if not preds or len(preds) < 2:
+            return _ui.div()
+        order    = ["Calm", "Neutral", "Energy"]
+        present  = [p for p in order if p in preds]
+        raw      = [max(preds[p], 0) for p in present]
+        total    = sum(raw) or 1
+        bars = []
+        for pl, val in zip(present, raw):
+            pct   = val / total * 100
+            color = {"Calm": "#56B4E9", "Neutral": "#009E73", "Energy": "#E69F00"}.get(pl, "#aaa")
+            nl    = {"Calm": "Kalm", "Neutral": "Neutraal", "Energy": "Energiek"}.get(pl, pl)
+            bars.append(_ui.div(
+                _ui.div(
+                    _ui.div(style=(
+                        f"width:{pct:.0f}%; height:6px; border-radius:3px; "
+                        f"background:{color}; transition:width 0.35s ease;"
+                    )),
+                    style=(
+                        "width:100%; height:6px; border-radius:3px; "
+                        "background:var(--bg-elevated); overflow:hidden; margin-bottom:3px;"
+                    ),
+                ),
+                _ui.div(
+                    _ui.span(nl, style=f"color:{color}; font-size:0.7rem; font-weight:600;"),
+                    _ui.span(f"{preds[pl]:+.2f} pt",
+                             style="color:var(--text-tertiary); font-size:0.7rem; float:right;"),
+                    style="overflow:hidden;",
+                ),
+                style="margin-bottom:8px;",
+            ))
+        return _ui.div(
+            _ui.div("Relatieve modelscores", class_="mt-caption mt-tertiary",
+                    style="margin-bottom:8px; margin-top:16px;"),
+            *bars,
+            style="margin-bottom:4px;",
         )
 
     @output

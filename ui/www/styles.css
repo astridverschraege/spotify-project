@@ -417,9 +417,9 @@ body > .container-fluid,
 .mt-h2 {
   font-family: 'Sora', sans-serif;
   font-weight: 700;
-  font-size: 1.25rem;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
+  font-size: 1.625rem;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
 }
 
 .mt-h3 {
@@ -1013,7 +1013,7 @@ label { color: var(--text-secondary) !important; }
 
 /* ---------- Section Layout ---------- */
 .mt-section      { padding: 24px var(--page-margin); }
-.mt-section-card { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: 16px; padding: 32px; box-shadow: var(--shadow-sm); margin-bottom: 16px; }
+.mt-section-card { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: 16px; padding: 40px; box-shadow: var(--shadow-sm); margin-bottom: 24px; }
 
 /* ---------- Hero Section (Science etc) ---------- */
 .mt-hero {
@@ -2625,4 +2625,67 @@ body.mt-home-active .mt-navbar {
   color: var(--text-primary);
   border-bottom-color: var(--accent);
   background: transparent;
+}
+
+/* ── UI/UX lift — editorial rhythm ────────────────────────────────────────── */
+
+/* Breathing room between consecutive section cards */
+.mt-section-card + .mt-section-card {
+  margin-top: 48px;
+}
+
+/* MadeByShape-style: large centered "statement sentence" between dense blocks */
+.mt-section-intro {
+  font-family: 'Sora', sans-serif;
+  font-weight: 400;
+  font-size: 1.25rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto 32px;
+  letter-spacing: -0.01em;
+}
+
+/* Northumberland-style: small uppercase eyebrow above section headings */
+.mt-section-label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+  display: block;
+}
+
+/* Kota-inspired: elevated glass card for hero visualizations (SHAP, Bayesian) */
+.mt-chart-hero {
+  background: var(--bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow:
+    0 0 80px rgba(22, 163, 74, 0.05),
+    var(--shadow-md);
+}
+
+/* Scroll-reveal: sections start hidden, JS adds .mt-revealed to trigger animation */
+.mt-section-card.mt-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+}
+.mt-section-card.mt-revealed {
+  animation: fadeInUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Home hero stat scale bump (Northumberland-editorial numbers) */
+.mt-hero-stat-value {
+  font-family: 'Sora', sans-serif;
+  font-weight: 700;
+  font-size: 2.5rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
 }
