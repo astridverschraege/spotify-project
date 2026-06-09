@@ -43,10 +43,13 @@ cd spotify-project
 
 # 2. Place your data files (see Data Setup below)
 
-# 3. Run the analysis pipeline
+# 3. Run the biometric pipeline
 ./scripts/pipeline.sh --all
 
-# 4. Launch the app
+# 4. Regenerate ML outputs (CSVs, plots, recommendations)
+./scripts/notebooks.sh
+
+# 5. Launch the app
 ./ui/run_app.sh
 ```
 
@@ -54,7 +57,15 @@ cd spotify-project
 ```bat
 bootstrap.bat
 ```
-Then use the same `./scripts/pipeline.sh` and `./ui/run_app.sh` commands in Git Bash.
+Then use the same shell commands in Git Bash.
+
+> **Do I always need to run `notebooks.sh`?**</br>
+> Only on a fresh clone (since `data/` is gitignored). The four ML notebooks
+> write their outputs — model results, SHAP plots, Bayesian posteriors, music
+> classifications — to `data/analysis/`. Once those files exist locally,
+> re-running the notebooks is only needed when the underlying wearable data changes.
+> Saved models (`models/`) are committed to git, so `notebooks.sh` is fast by default
+> (~1–3 min): it loads existing models and re-exports all CSV/JSON/PNG outputs.
 
 ---
 
@@ -63,7 +74,8 @@ Then use the same `./scripts/pipeline.sh` and `./ui/run_app.sh` commands in Git 
 | Script | What it does |
 |--------|-------------|
 | `./bootstrap.sh` | First-time setup: checks uv, installs dependencies, creates data directories |
-| `./scripts/pipeline.sh` | Runs the full analysis pipeline (extraction → baseline → sessions) |
+| `./scripts/pipeline.sh` | Biometric pipeline (extraction → baseline → sessions) |
+| `./scripts/notebooks.sh` | ML notebooks → app outputs (model results, SHAP, posteriors, music classification) |
 | `./scripts/playlists.sh` | Generates playlists for a participant |
 | `./ui/run_app.sh` | Launches the Shiny app |
 
@@ -121,6 +133,32 @@ Each stage skips work that's already up to date (freshness checks on output file
 
 ---
 
+## Running the Notebooks
+
+The four notebooks in `notebooks/ml/` produce all ML outputs the app reads.
+Run them after the biometric pipeline has completed.
+
+```bash
+# Fast (default) — load committed models, re-export CSV/JSON/PNG outputs (~1–3 min)
+./scripts/notebooks.sh
+
+# Full refit — retrain every model from scratch (~10 min)
+./scripts/notebooks.sh --fresh
+```
+
+| Notebook | Produces | App page |
+|----------|----------|----------|
+| `1_circadian_ml.ipynb` | Ridge/RF/GBM results, SHAP plots, Bootstrap CI, RQ3 confusion matrix | Model & Data (RQ3, RQ4) |
+| `2_bayesian_recommender.ipynb` | Bayesian posteriors, `recommendations.json`, MCMC diagnostics | Aanbevelingen, Model & Data (RQ4c) |
+| `3_music_class_supervised.ipynb` | `classified_songs.csv` per participant (arousal scores) | Jouw Muziek |
+| `4_music_class_unsupervised.ipynb` | GMM cluster assignments, PCA scatter | Jouw Muziek (cluster plot) |
+
+The notebooks run in dependency order: notebook 1 must complete before 3 and 4
+(they need `feature_matrix.csv` which is built by the biometric pipeline, not by notebook 1 itself).
+Notebook 2 is independent.
+
+---
+
 ## Generating Playlists
 
 Playlists are generated from a participant's Exportify CSV export using the ISO principle (gradual BPM/energy transitions toward the target state).
@@ -169,6 +207,7 @@ spotify-project/
 ├── scripts/
 │   ├── main.py                ← Master pipeline orchestrator
 │   ├── pipeline.sh            ← Shell wrapper for main.py
+│   ├── notebooks.sh           ← Runs all 4 ML notebooks → app outputs
 │   ├── playlists.sh           ← Shell wrapper for playlist generation
 │   ├── extraction/            ← Stage 1: raw wearable data → processed CSVs
 │   ├── baseline/              ← Stage 2: circadian baselines + recovery curves
