@@ -220,6 +220,9 @@ def _fit_live_model(d: AppData) -> None:
     ]
     derived_cols = ["hour_sin", "hour_cos", "dow_sin", "dow_cos", "calm_x_dev", "energy_x_dev"]
 
+    # Drop any cols not present in this version of the feature matrix (graceful degradation)
+    base_cols = [c for c in base_cols if c in fm.columns]
+
     p_dummies = pd.get_dummies(fm["participant"], prefix="p", drop_first=True)
     all_cols = base_cols + derived_cols + list(p_dummies.columns)
 
