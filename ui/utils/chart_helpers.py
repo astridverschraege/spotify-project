@@ -29,6 +29,15 @@ PLAYLIST_COLORS = {
 # General Okabe-Ito sequence for non-playlist categorical charts
 CHART_COLORS = ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]
 
+# Shared axis defaults — exported so callers can use them for secondary axes (yaxis2 etc.)
+AXIS_DEFAULTS = dict(
+    gridcolor=GRID_COLOR,
+    zerolinecolor=ZERO_COLOR,
+    linecolor="rgba(255,255,255,0.08)",
+    tickfont=dict(color=TEXT_SECONDARY, size=11),
+    title_font=dict(color=TEXT_SECONDARY, family="DM Sans, sans-serif", size=12),
+)
+
 # Standard layout to apply to all Plotly charts
 PLOTLY_LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
@@ -43,19 +52,9 @@ PLOTLY_LAYOUT = dict(
         size=18,
         color=TEXT_PRIMARY,
     ),
-    xaxis=dict(
-        gridcolor=GRID_COLOR,
-        zerolinecolor=ZERO_COLOR,
-        tickfont=dict(color=TEXT_TERTIARY, size=12),
-        title_font=dict(color=TEXT_SECONDARY, family="DM Sans, sans-serif"),
-    ),
-    yaxis=dict(
-        gridcolor=GRID_COLOR,
-        zerolinecolor=ZERO_COLOR,
-        tickfont=dict(color=TEXT_TERTIARY, size=12),
-        title_font=dict(color=TEXT_SECONDARY, family="DM Sans, sans-serif"),
-    ),
-    margin=dict(l=48, r=24, t=48, b=40),
+    xaxis=dict(**AXIS_DEFAULTS),
+    yaxis=dict(**AXIS_DEFAULTS),
+    margin=dict(l=48, r=24, t=24, b=40),
     legend=dict(
         bgcolor="rgba(0,0,0,0)",
         font=dict(color=TEXT_SECONDARY, size=12),
@@ -80,10 +79,19 @@ PLOTLY_LAYOUT = dict(
 
 
 def chart_layout(**overrides) -> dict:
-    """Base Plotly layout for all MoodTune charts."""
-    base = dict(PLOTLY_LAYOUT)
-    base.update(overrides)
-    return base
+    """Base Plotly layout for all MoodTune charts.
+
+    Dict-typed keys (xaxis, yaxis, legend, margin, …) are shallowly merged,
+    so per-chart overrides extend rather than replace the base axis styling.
+    """
+    result = dict(PLOTLY_LAYOUT)
+    for key, val in overrides.items():
+        base_val = result.get(key)
+        if isinstance(base_val, dict) and isinstance(val, dict):
+            result[key] = {**base_val, **val}
+        else:
+            result[key] = val
+    return result
 
 
 def empty_figure(message: str = "Geen data beschikbaar") -> go.Figure:
