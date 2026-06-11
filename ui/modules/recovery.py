@@ -220,10 +220,7 @@ def _recovery_scatter(df: pd.DataFrame) -> go.Figure:
 
 def _stat_card(label: str, value: str, sub: str = "", color: str = "var(--accent)") -> _ui.Tag:
     return _ui.div(
-        _ui.div(value, style=(
-            f"font-family:'Sora',sans-serif; font-weight:700; font-size:2rem; "
-            f"color:{color}; line-height:1; margin-bottom:6px;"
-        )),
+        _ui.div(value, class_="mt-stat-value", style=f"color:{color};"),
         _ui.div(label, class_="mt-stat-label"),
         _ui.div(sub, class_="mt-caption mt-tertiary", style="margin-top:4px;") if sub else _ui.div(),
         class_="mt-stat-card",
@@ -257,13 +254,13 @@ def ui():
         # Concept explanation + data funnel — always visible
         _ui.div(
             _ui.output_ui("concept_explanation"),
-            style="padding:0 var(--page-margin) 48px;",
+            class_="mt-page-pad-x", style="padding-bottom:48px;",
         ),
 
         # Stat row
         _ui.div(
             _ui.output_ui("recovery_stats"),
-            style="padding:0 var(--page-margin) 56px;",
+            class_="mt-page-pad-x", style="padding-bottom:56px;",
         ),
 
         # Per-session scatter chart
@@ -279,7 +276,7 @@ def ui():
                 _ui.output_ui("honest_framing"),
                 class_="mt-section-card",
             ),
-            style="padding:0 var(--page-margin) 56px;",
+            class_="mt-page-pad-x", style="padding-bottom:56px;",
         ),
 
         # Combined group PNGs (collapsible)
@@ -297,7 +294,7 @@ def ui():
                 _ui.output_ui("group_plots"),
                 class_="mt-section-card",
             ),
-            style="padding:0 var(--page-margin) 56px;",
+            class_="mt-page-pad-x", style="padding-bottom:56px;",
         ),
     )
 

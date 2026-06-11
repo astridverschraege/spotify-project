@@ -31,9 +31,9 @@ _MONTHS_NL = ["jan", "feb", "mrt", "apr", "mei", "jun",
 _PLAYLIST_NL = {"Calm": "Kalm", "Neutral": "Neutraal", "Energy": "Energiek"}
 
 _PRED_COLORS = {
-    "Calm":    ("var(--calm-color)",    "#56B4E9"),
-    "Neutral": ("var(--neutral-color)", "#009E73"),
-    "Energy":  ("var(--energy-color)",  "#E69F00"),
+    "Calm":    ("var(--calm-color)",    "var(--calm-color)"),
+    "Neutral": ("var(--neutral-color)", "var(--neutral-color)"),
+    "Energy":  ("var(--energy-color)",  "var(--energy-color)"),
 }
 
 
@@ -51,25 +51,16 @@ def _mini_prediction_bars(predictions: dict) -> "_ui.Tag":
         sign = "+" if val >= 0 else ""
         nl = {"Calm": "Kalm", "Neutral": "Neutraal", "Energy": "Energiek"}.get(pl, pl)
         rows.append(_ui.div(
-            _ui.span(nl, style=(
-                f"font-size:0.75rem; font-weight:600; color:{fallback}; "
-                "min-width:64px; flex-shrink:0;"
-            )),
+            _ui.span(nl, class_="mt-pred-label", style=f"color:{fallback};"),
             _ui.div(
-                _ui.div(style=(
-                    f"width:{bar_pct:.0f}%; height:4px; border-radius:2px; "
-                    f"background:{bar_color}; transition:width 0.3s ease;"
-                )),
-                style=(
-                    "flex:1; height:4px; border-radius:2px; "
-                    "background:var(--bg-elevated); overflow:hidden;"
+                _ui.div(
+                    class_="mt-pred-bar-fill",
+                    style=f"width:{bar_pct:.0f}%; background:{bar_color};",
                 ),
+                class_="mt-pred-bar-bg",
             ),
-            _ui.span(f"{sign}{val:.1f} pt", style=(
-                "font-size:0.75rem; color:var(--text-secondary); "
-                "min-width:48px; text-align:right; flex-shrink:0;"
-            )),
-            style="display:flex; align-items:center; gap:10px; margin-bottom:6px;",
+            _ui.span(f"{sign}{val:.1f} pt", class_="mt-pred-value"),
+            class_="mt-pred-row",
         ))
     return _ui.div(
         _ui.div("Voorspelde stemmingswinst", class_="mt-caption mt-tertiary",
@@ -90,8 +81,7 @@ def _ring_svg(pct: float, color: str) -> str:
     filled = circumference * min(max(pct, 0.0), 1.0)
     gap = circumference - filled
     return (
-        f'<svg width="36" height="36" viewBox="0 0 36 36" '
-        f'style="flex-shrink:0; transform:rotate(-90deg);">'
+        f'<svg width="36" height="36" viewBox="0 0 36 36" class="mt-ring-svg">'
         f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" '
         f'stroke="var(--bg-elevated)" stroke-width="4"/>'
         f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" '

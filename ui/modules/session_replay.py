@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from shiny import module, reactive, render, ui as _ui
 from shinywidgets import output_widget, render_widget
 
-from utils.chart_helpers import ACCENT, GRID_COLOR, PLAYLIST_COLORS, STRESS_RED, TEXT_SECONDARY, chart_layout, empty_figure
+from utils.chart_helpers import ACCENT, AXIS_DEFAULTS, GRID_COLOR, PLAYLIST_COLORS, STRESS_RED, TEXT_SECONDARY, chart_layout, empty_figure
 from utils.data_loader import PARTICIPANTS, AppData
 from utils.mood_valence import mood_is_improvement
 
@@ -158,6 +158,7 @@ def _biometric_chart(
 
     yaxis1_title = "Stress (0-100)" if has_stress else "—"
     yaxis2_cfg   = dict(
+        **AXIS_DEFAULTS,
         title="Hartslag (bpm)", overlaying="y", side="right",
         range=[40, 130], showgrid=False,
     ) if has_hr else dict(visible=False, overlaying="y", side="right", showgrid=False)
@@ -678,7 +679,7 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
                     _ui.div("Afspeellijst", class_="mt-session-summary-label", style="margin-top:6px;"),
                     class_="mt-session-summary-item",
                 ),
-                class_="mt-session-summary-card",
+                class_=f"mt-session-summary-card mt-card-{pl.lower()}",
             ),
             _mood_bio_comparison(row),
             style="margin:0 var(--page-margin);",

@@ -14,9 +14,9 @@ DATA = ROOT / "data"
 
 _PAGE_SIZE   = 25
 _CLASS_NL    = {"calm": "Kalm", "energy": "Energiek", "other": "Overig"}
-_CLASS_COLOR = {"calm": "#0072B2", "energy": "#b07800", "other": "#6b7280"}
-_CLASS_BG    = {"calm": "rgba(37,99,235,0.10)", "energy": "rgba(234,108,10,0.10)", "other": "rgba(107,114,128,0.10)"}
-_CLASS_BORDER = {"calm": "rgba(37,99,235,0.22)", "energy": "rgba(234,108,10,0.22)", "other": "rgba(107,114,128,0.22)"}
+_CLASS_COLOR = {"calm": "var(--calm-color)", "energy": "var(--energy-color)", "other": "var(--text-secondary)"}
+_CLASS_BG    = {"calm": "rgba(86,180,233,0.06)",  "energy": "rgba(230,159,0,0.06)",  "other": "rgba(156,163,175,0.04)"}
+_CLASS_BORDER = {"calm": "rgba(86,180,233,0.20)", "energy": "rgba(230,159,0,0.20)", "other": "rgba(156,163,175,0.14)"}
 
 
 def _img_b64(path: Path) -> str:
@@ -354,11 +354,11 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
             nl  = _CLASS_NL.get(cls, cls.capitalize())
             return _ui.div(
                 _ui.div(icon, style="font-size:2rem; margin-bottom:8px;"),
-                _ui.div(str(n), style=f"font-size:2rem; font-weight:700; font-family:'Sora',sans-serif; color:{col}; line-height:1;"),
-                _ui.div(nl, style="font-size:0.8125rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; margin-top:4px; color:var(--text-secondary);"),
-                _ui.div(f"{pct:.0f}% van bibliotheek", style="font-size:0.75rem; color:var(--text-tertiary); margin-top:2px;"),
+                _ui.div(str(n), class_="mt-stat-value", style=f"color:{col};"),
+                _ui.div(nl, style="font-size:var(--font-size-sm); font-weight:600; text-transform:uppercase; letter-spacing:0.04em; margin-top:4px; color:var(--text-secondary);"),
+                _ui.div(f"{pct:.0f}% van bibliotheek", class_="mt-caption mt-tertiary", style="margin-top:2px;"),
                 style=(
-                    f"flex:1; text-align:center; padding:20px 16px; border-radius:12px; "
+                    f"flex:1; text-align:center; padding:20px 16px; border-radius:calc(var(--radius-card) - 4px); "
                     f"background:{bg}; border:1px solid {brd};"
                 ),
             )

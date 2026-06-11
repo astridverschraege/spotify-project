@@ -94,7 +94,7 @@ def _effectiveness_chart(bio_df: pd.DataFrame) -> go.Figure:
             mode="markers",
             marker=dict(
                 color=color, size=8, opacity=0.85,
-                line=dict(color="rgba(0,0,0,0.2)", width=1),
+                line=dict(color="rgba(255,255,255,0.20)", width=1),
                 symbol="circle",
             ),
             yaxis="y",
@@ -153,7 +153,7 @@ def _longitudinal_chart(p: str, feature_matrix: pd.DataFrame) -> go.Figure:
         y=df["pre_study_stress_deviation"],
         mode="lines+markers",
         line=dict(color=TEXT_SECONDARY, width=1.5),
-        marker=dict(size=11, color=point_colors, line=dict(width=1.5, color="rgba(0,0,0,0.15)")),
+        marker=dict(size=11, color=point_colors, line=dict(width=1.5, color="rgba(255,255,255,0.15)")),
         customdata=customdata,
         hovertemplate=(
             "<b>Sessie %{customdata[3]}</b> — %{customdata[0]}<br>"
@@ -236,13 +236,19 @@ def _stat_card(label: str, value: str, sub: str = "", value_class: str = "mt-sta
 
 def _stat_card_colored(label: str, value: str, sub: str = "", color: str = "var(--accent)") -> _ui.Tag:
     return _ui.div(
-        _ui.div(value,
-                style=f"font-family:'Sora',sans-serif; font-weight:700; font-size:2rem; "
-                      f"color:{color}; line-height:1; margin-bottom:6px;"),
+        _ui.div(value, class_="mt-stat-value", style=f"color:{color};"),
         _ui.div(label, class_="mt-stat-label"),
-        _ui.div(sub, class_="mt-caption", style="color:var(--text-tertiary); margin-top:4px;") if sub else _ui.div(),
+        _ui.div(sub, class_="mt-caption mt-tertiary", style="margin-top:4px;") if sub else _ui.div(),
         class_="mt-stat-card",
-        style=f"border-left-color:{color};",
+    )
+
+
+def _metric_chip(label: str, value: str, sub: str = "", color: str = "var(--text-primary)") -> _ui.Tag:
+    return _ui.div(
+        _ui.div(value, class_="mt-metric-chip-value", style=f"color:{color};"),
+        _ui.div(label, class_="mt-metric-chip-label"),
+        _ui.div(sub,   class_="mt-metric-chip-sub") if sub else _ui.div(),
+        class_="mt-metric-chip",
     )
 
 
@@ -260,13 +266,12 @@ def _stat_grid(summary: dict, playlist_color: str, app_data=None) -> _ui.Tag:
     bp_nl  = _PLAYLIST_NL.get(bp, bp)
     bp_conf = f"{summary['best_playlist_confidence']}% relatieve voorkeur" if summary["best_playlist_confidence"] else "pre-berekend"
 
-    _PL_COLORS = {"Calm": "#56B4E9", "Neutral": "#009E73", "Energy": "#E69F00"}
+    _PL_COLORS = {"Calm": "var(--calm-color)", "Neutral": "var(--neutral-color)", "Energy": "var(--energy-color)"}
     bp_color   = _PL_COLORS.get(bp, "var(--accent)")
 
     weeks     = summary.get("study_weeks", 0)
     weeks_str = f"{weeks} wk" if weeks else "—"
 
-    # Recovery advantage from session_features (tau_advantage where r2_actual > 0.05)
     recovery_val = "—"
     recovery_sub = "herstel t.o.v. basislijn"
     p = summary.get("_participant")
@@ -283,14 +288,12 @@ def _stat_grid(summary: dict, playlist_color: str, app_data=None) -> _ui.Tag:
                 recovery_sub = "onvoldoende betrouwbare sessies"
 
     return _ui.div(
-        _stat_card_colored("Aanbevolen afspeellijst", bp_nl.upper() if bp != "—" else "—",
-                           bp_conf, color=bp_color),
-        _stat_card_colored("Gem. stemmingsverbetering", mood_val,
-                           "per sessie gemiddeld", color=mood_color),
-        _stat_card("Voltooide sessies", sessions, "totaal"),
-        _stat_card("Studieduur", weeks_str, "weken actief"),
-        _stat_card("Herstelsnelheid", recovery_val, recovery_sub),
-        style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px;",
+        _metric_chip("Aanbevolen playlist", bp_nl.upper() if bp != "—" else "—", bp_conf, color=bp_color),
+        _metric_chip("Gem. stemmingswinst", mood_val, "per sessie gemiddeld", color=mood_color),
+        _metric_chip("Sessies", sessions, "voltooide sessies"),
+        _metric_chip("Studieduur", weeks_str, "weken actief"),
+        _metric_chip("Herstelvoordeel", recovery_val, recovery_sub),
+        class_="mt-metric-strip",
     )
 
 
@@ -430,11 +433,17 @@ def _session_table(df: pd.DataFrame, page: int) -> _ui.Tag:
     )
 
     return _ui.div(
-        _ui.div("Sessieoverzicht", class_="mt-h2", style="margin-bottom:8px;"),
         _ui.div(
-            "Elke sessie · stemming voor en na · delta = na − voor · "
-            "✓/✗ gebaseerd op emotievalentie (negatieve emoties: lagere intensiteit = beter)",
-            class_="mt-caption mt-secondary", style="margin-bottom:16px;",
+            _ui.div(
+                _ui.div("Sessieoverzicht", class_="mt-h2 mt-section-header-title"),
+                _ui.div(
+                    "Elke sessie · stemming voor en na · delta = na − voor · "
+                    "✓/✗ gebaseerd op emotievalentie",
+                    class_="mt-section-header-sub",
+                ),
+                class_="mt-section-header-left",
+            ),
+            class_="mt-section-header",
         ),
         _ui.div(
             _ui.tags.table(
@@ -472,11 +481,13 @@ def ui():
         # Grafiek afspeellijsteffectiviteit (3.2 — beeswarm over bar)
         _ui.div(
             _ui.div(
-                _ui.div("Stemmingsverbetering per afspeellijsttype", class_="mt-h2",
-                        style="margin-bottom:6px;"),
                 _ui.div(
-                    "Elke stip = één sessie. De balk = gemiddelde. Foutbalken = 95% betrouwbaarheidsinterval.",
-                    class_="mt-caption mt-secondary", style="margin-bottom:16px;",
+                    _ui.div(
+                        _ui.div("Stemmingsverbetering per afspeellijsttype", class_="mt-h2 mt-section-header-title"),
+                        _ui.div("Elke stip = één sessie · balk = gemiddelde · foutbalken = 95% BI", class_="mt-section-header-sub"),
+                        class_="mt-section-header-left",
+                    ),
+                    class_="mt-section-header",
                 ),
                 output_widget("effectiveness_chart"),
                 _ui.output_ui("chart_footnote"),
@@ -488,48 +499,20 @@ def ui():
         # Longitudinale stresstrend (3.3 — clickable)
         _ui.div(
             _ui.div(
-                _ui.div("Stressontwikkeling over de studieperiode", class_="mt-h2",
-                        style="margin-bottom:6px;"),
                 _ui.div(
-                    "Stressafwijking t.o.v. pre-studie basislijn per sessie · "
-                    "kleur = afspeellijsttype · klik op een punt voor sessiedetails",
-                    class_="mt-caption mt-secondary", style="margin-bottom:16px;",
+                    _ui.div(
+                        _ui.div("Stressontwikkeling over de studieperiode", class_="mt-h2 mt-section-header-title"),
+                        _ui.div("Stressafwijking t.o.v. pre-studie basislijn · kleur = afspeellijsttype · klik voor sessiedetails", class_="mt-section-header-sub"),
+                        class_="mt-section-header-left",
+                    ),
+                    class_="mt-section-header",
                 ),
                 _ui.div(
                     output_widget("longitudinal_chart"),
                     id="mt-lon-chart-wrapper",
                 ),
                 # JS: forward Plotly click → Shiny input (more reliable than FigureWidget.on_click)
-                _ui.HTML("""<script>
-(function () {
-    function _attachLon() {
-        var wrap = document.getElementById('mt-lon-chart-wrapper');
-        if (!wrap) { setTimeout(_attachLon, 600); return; }
-        var div = wrap.querySelector('.plotly-graph-div');
-        if (!div || !div.on) { setTimeout(_attachLon, 600); return; }
-        if (div._mt_lon_bound) return;
-        div._mt_lon_bound = true;
-        div.on('plotly_click', function (data) {
-            if (!data.points || !data.points.length) return;
-            var pt = data.points[0];
-            var cd = pt.customdata;
-            if (!cd || cd.length < 4) return;
-            if (!window.Shiny) return;
-            Shiny.setInputValue('results-lon_click', {
-                date:    String(cd[0]),
-                pl_nl:   String(cd[1]),
-                delta:   cd[2],
-                session: cd[3],
-                stress:  pt.y,
-            }, {priority: 'event'});
-        });
-    }
-    // Re-attach whenever the chart might be re-rendered
-    var _obs = new MutationObserver(_attachLon);
-    _obs.observe(document.body, {childList: true, subtree: true});
-    _attachLon();
-})();
-</script>"""),
+                _ui.tags.script(src="js/results.js"),
                 _ui.output_ui("lon_session_detail"),
                 _ui.div(
                     "Een dalende trend suggereert dat herhaald gebruik de stressregulatie verbetert.",
@@ -840,7 +823,7 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
                 style="margin:0;",
             ),
             class_="mt-section-card",
-            style="border-left:4px solid var(--accent); padding:20px 24px;",
+            style="padding:20px 24px;",
         )
 
     @output

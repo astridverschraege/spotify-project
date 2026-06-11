@@ -47,6 +47,7 @@ def _stress_color(normalized: float, alpha: float = 0.75) -> str:
 
 
 def _circadian_clock_svg(
+    # TODO: extract onclick handlers — blocked by Python variable interpolation in SVG onclick attributes
     golden_hour: int, peak_hour: int,
     golden_stress: float | None = None,
     peak_stress: float | None = None,
@@ -398,7 +399,7 @@ def ui():
                     ),
                 ),
                 style=(
-                    "background:var(--bg-elevated); border-left:3px solid var(--accent); "
+                    "background:var(--bg-elevated); "
                     "padding:12px 16px; border-radius:6px; max-width:600px; margin:0 auto;"
                 ),
             ),
@@ -652,7 +653,7 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
                 _ui.div(f"{stress_val:.0f} gem. stresspunten", style="font-size:0.8125rem; color:var(--text-secondary); margin-bottom:8px;"),
                 _ui.p(explanation, style="font-size:0.8125rem; color:var(--text-tertiary); margin:0; line-height:1.55;"),
                 style=(
-                    f"padding:16px 18px; border-radius:10px; border-left:3px solid {border_color}; "
+                    f"padding:16px 18px; border-radius:calc(var(--radius-card) - 4px); "
                     f"background:var(--bg-elevated);"
                 ),
             )

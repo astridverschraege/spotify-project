@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from shiny import module, reactive, render, ui as _ui
 from shinywidgets import output_widget, render_widget
 
-from utils.chart_helpers import ACCENT, GRID_COLOR, PLAYLIST_COLORS, TEXT_SECONDARY, chart_layout, empty_figure
+from utils.chart_helpers import ACCENT, GRID_COLOR, PLAYLIST_COLORS, TEXT_SECONDARY, ZERO_COLOR, chart_layout, empty_figure
 from utils.data_loader import PARTICIPANTS, AppData, best_playlist_for, expected_stress, live_recommend, explain_live_prediction
 
 
@@ -68,7 +68,7 @@ def _posterior_chart(recs: dict) -> go.Figure:
         hovertemplate=hover_texts,
     ))
 
-    fig.add_vline(x=0, line=dict(color="rgba(0,0,0,0.15)", width=1, dash="dot"))
+    fig.add_vline(x=0, line=dict(color=ZERO_COLOR, width=1, dash="dot"))
     x_max = max(pcts) * 1.45 if any(p > 0 for p in pcts) else 60
     fig.update_layout(**chart_layout(
         xaxis=dict(title="Relatieve voorkeur (%)", range=[0, x_max], gridcolor=GRID_COLOR),
@@ -550,7 +550,7 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
             textposition="outside",
             textfont=dict(color=TEXT_SECONDARY, size=10),
         ))
-        fig.add_vline(x=0, line=dict(color="rgba(0,0,0,0.15)", width=1, dash="dot"))
+        fig.add_vline(x=0, line=dict(color=ZERO_COLOR, width=1, dash="dot"))
         fig.update_layout(**chart_layout(
             xaxis=dict(title="Bijdrage aan voorspelde stemmingswinst", gridcolor=GRID_COLOR),
             yaxis=dict(gridcolor="rgba(0,0,0,0)"),

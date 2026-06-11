@@ -544,7 +544,7 @@ def ui():
                             "Aanneemt lineariteit — complexe interacties worden gemist.",
                             class_="mt-caption mt-tertiary",
                         ),
-                        class_="mt-card-elevated", style="padding:16px; border-left:3px solid var(--accent-lime);",
+                        class_="mt-card-elevated", style="padding:16px;",
                     ),
                     _ui.div(
                         _ui.span("Random Forest", class_="mt-h3",
@@ -560,7 +560,7 @@ def ui():
                             "LOPO MAE=1.646 (beter dan Ridge=2.104 cross-participant), maar LOO R²=0.233 < Ridge R²=0.318.",
                             class_="mt-caption mt-tertiary",
                         ),
-                        class_="mt-card-elevated", style="padding:16px; border-left:3px solid #56B4E9;",
+                        class_="mt-card-elevated", style="padding:16px;",
                     ),
                     _ui.div(
                         _ui.span("Gradient Boosting", class_="mt-h3",
@@ -575,7 +575,7 @@ def ui():
                             "Ongeschikt voor dit dataset; behouden als vergelijkingspunt.",
                             class_="mt-caption mt-tertiary",
                         ),
-                        class_="mt-card-elevated", style="padding:16px; border-left:3px solid #f59e0b;",
+                        class_="mt-card-elevated", style="padding:16px;",
                     ),
                     _ui.div(
                         _ui.span("Gemengd-effecten model", class_="mt-h3",
@@ -591,7 +591,7 @@ def ui():
                             "Random effects slecht geschat bij ≤20 sessies per persoon.",
                             class_="mt-caption mt-tertiary",
                         ),
-                        class_="mt-card-elevated", style="padding:16px; border-left:3px solid #009E73;",
+                        class_="mt-card-elevated", style="padding:16px;",
                     ),
                     style="display:grid; grid-template-columns:repeat(2,1fr); gap:12px;",
                 ),
@@ -1306,32 +1306,4 @@ def server(input, output, session, app_data: AppData):
         ),
 
         # Scroll-reveal: fade sections in as they enter the viewport
-        _ui.HTML("""
-<script>
-(function () {
-  'use strict';
-  var obs = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) {
-      if (e.isIntersecting) {
-        e.target.classList.remove('mt-reveal');
-        e.target.classList.add('mt-revealed');
-        obs.unobserve(e.target);
-      }
-    });
-  }, { threshold: 0.06 });
-  function _attach() {
-    document.querySelectorAll('.mt-section-card:not(.mt-revealed)').forEach(function (el) {
-      el.classList.add('mt-reveal');
-      obs.observe(el);
-    });
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', _attach);
-  } else {
-    _attach();
-  }
-  // Re-attach when Shiny re-renders (tab switches, reactive updates)
-  document.addEventListener('shiny:value', function () { setTimeout(_attach, 80); });
-})();
-</script>
-""")
+        _ui.tags.script(src="js/model.js"),
