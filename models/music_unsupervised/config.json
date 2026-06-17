@@ -1,5 +1,6 @@
 {
-  "optimal_k": 10,
+  "optimal_k": 5,
+  "optimal_k_bic": 10,
   "features": [
     "tempo",
     "energy",
@@ -12,8 +13,8 @@
   "n_participants": 3,
   "k3_bic": 75271.03644590554,
   "k3_silhouette": 0.13448770274284785,
-  "opt_bic": 68535.9868234282,
-  "opt_silhouette": 0.03496679489369403,
+  "opt_bic": 71738.24882615132,
+  "opt_silhouette": 0.07162534470939123,
   "bic_sweep": {
     "2": {
       "bic": 82571.20206435815,
