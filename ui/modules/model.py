@@ -1130,7 +1130,7 @@ def server(input, output, session, app_data: AppData):
         # LSTM deep learning plots
         lstm_plots = [
             ("lstm_predictions_mood_delta.png",
-             "LSTM LOO-CV: voorspeld vs. werkelijk mood_delta (N=27 sessies)"),
+             "LSTM LOO-CV: voorspeld vs. werkelijk mood_delta (N=74 sessies)"),
             ("lstm_saliency_heatmap.png",
              "Gradient saliency — op welke minuten van de sessie let het LSTM het meest?"),
             ("lstm_vs_tabular_comparison.png",

@@ -8,7 +8,7 @@ Rationale: tabular models discard the temporal shape of the stress arc.
 An LSTM can capture whether stress dropped steeply vs. gradually, or whether
 HR rebounded mid-session — the exact temporal pattern the ISO principle predicts.
 
-N=27 sessions (participants with both traces and mood scores). Mitigations:
+N=74 sessions (participants with both traces and mood scores). Mitigations:
 - 1-layer LSTM (32 hidden units)
 - LOO cross-validation
 - 5× Gaussian jitter augmentation during training (N_train × 5 synthetic copies)
