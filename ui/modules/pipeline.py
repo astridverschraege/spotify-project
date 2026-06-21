@@ -475,7 +475,7 @@ def _df_to_html(df: pd.DataFrame) -> str:
         for _, row in df.iterrows()
     )
     return (
-        "<div style='background:var(--bg-surface,#1a1a1a); border-radius:8px; overflow:auto;'>"
+        "<div style='background:transparent; border-radius:8px; overflow:auto;'>"
         "<table class='mt-table' style='font-size:12px;'>"
         f"<thead><tr>{headers}</tr></thead>"
         f"<tbody>{rows}</tbody>"

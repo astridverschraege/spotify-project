@@ -74,7 +74,10 @@ def outputs_are_fresh(processed_dir: Path, export_dir: Path, device: str) -> boo
     if not raw_files:
         return True  # nothing to compare against
 
-    newest_raw = max(f.stat().st_mtime for f in raw_files if f.is_file())
+    newest_raw = max(
+        (f.stat().st_mtime for f in raw_files if f.is_file() and not f.name.startswith(".")),
+        default=0,
+    )
     return processed_mtime >= newest_raw
 
 

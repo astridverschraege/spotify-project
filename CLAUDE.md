@@ -209,6 +209,7 @@ Converts raw wearable GDPR exports → per-minute CSVs with activity classificat
 - `fit_extractor.py` — Low-level Garmin FIT binary parser
 - Outputs land in `data/wearables/[codename]/processed/`
 - Timezone note: FIT files are UTC; check-in times are CET (UTC+1)
+- Check-in date format: `Welke dag deed je een check-in?` exports as `YYYY-MM-DD` (ISO 8601). The `Tijdstempel` column uses `YYYY/MM/DD H:MM:SS a.m./p.m.`. `checkin_utils.py` auto-detects day/month swaps (mobile form bug) and emits a warning per corrected row.
 
 ### Pipeline 2 — Baseline (`scripts/baseline/`)
 
@@ -367,7 +368,7 @@ Validation passes when 3–4 of 4 criteria are met: tempo ranges, energy separat
 ## Important Notes
 
 - `data/wearables/*/raw/` is gitignored — never commit raw wearable data (contains participant PII)
-- The check-in CSV is the join key between playlist sessions and biometric data — participant codename + date + time must align across both sources. Two path conventions exist: `data/checkins/Check-in_formulier_REM.csv` (partner's setup, pipeline default) and `data/check_in/check_in.csv` (this machine). The extraction pipeline searches `data/checkins/*.csv` by default; use `--checkin <path>` to override. Google Forms exports dates as D-M-YYYY; `checkin_utils.py` auto-corrects this with a warning.
+- The check-in CSV is the join key between playlist sessions and biometric data — participant codename + date + time must align across both sources. The extraction pipeline searches `data/checkins/*.csv` by default; use `--checkin <path>` to override.
 - `outlier_detection.py` is a QA debug tool — use when validation fails or biometric trajectories look anomalous, not routinely
 - No automated test suite (`tests/` is empty); run `py_compile` checks before committing
 - `spotify_tui.py` uses hardcoded relative paths (`data/playlists/...`) — must be run from the project root. All other scripts resolve paths relative to `__file__` and work from any directory.

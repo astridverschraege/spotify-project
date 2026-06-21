@@ -1,5 +1,4 @@
 """Pagina 3 -- Circadiaans ritme: uurlijkse stressbasislijn per deelnemer."""
-import math
 import numpy as np
 import plotly.graph_objects as go
 from shiny import module, reactive, render, ui as _ui
@@ -8,27 +7,6 @@ from shinywidgets import output_widget, render_widget
 from utils.chart_helpers import ACCENT, GRID_COLOR, PLAYLIST_COLORS, TEXT_SECONDARY, chart_layout, empty_figure
 from utils.data_loader import PARTICIPANTS, AppData, expected_stress
 from utils.mood_valence import mood_is_improvement
-
-
-def _arc_path(h_start: float, h_end: float, r_outer: float, r_inner: float,
-              cx: float = 180, cy: float = 180) -> str:
-    """SVG path for a filled arc segment between two hours on a 24-hour clock."""
-    def _pt(hour, r):
-        angle = (hour / 24) * 2 * math.pi - math.pi / 2
-        return cx + r * math.cos(angle), cy + r * math.sin(angle)
-
-    span = h_end - h_start
-    large = 1 if span > 12 else 0
-    x1o, y1o = _pt(h_start, r_outer)
-    x2o, y2o = _pt(h_end,   r_outer)
-    x1i, y1i = _pt(h_end,   r_inner)
-    x2i, y2i = _pt(h_start, r_inner)
-    return (
-        f"M {x1o:.2f} {y1o:.2f} "
-        f"A {r_outer} {r_outer} 0 {large} 1 {x2o:.2f} {y2o:.2f} "
-        f"L {x1i:.2f} {y1i:.2f} "
-        f"A {r_inner} {r_inner} 0 {large} 0 {x2i:.2f} {y2i:.2f} Z"
-    )
 
 
 def _stress_color(normalized: float, alpha: float = 0.75) -> str:
@@ -47,222 +25,206 @@ def _stress_color(normalized: float, alpha: float = 0.75) -> str:
     return f"rgba({r},{g},{b},{alpha})"
 
 
-def _circadian_clock_svg(
-    # TODO: extract onclick handlers — blocked by Python variable interpolation in SVG onclick attributes
-    golden_hour: int, peak_hour: int,
-    golden_stress: float | None = None,
-    peak_stress: float | None = None,
-    hb_df=None,
-    sessions: list | None = None,
-    active_arc: str | None = None,
-) -> str:
+def _tod_label(h: int) -> str:
+    if h < 6:  return "Nacht"
+    if h < 9:  return "Vroege ochtend"
+    if h < 12: return "Ochtend"
+    if h < 14: return "Middag"
+    if h < 18: return "Namiddag"
+    if h < 21: return "Avond"
+    return "Late avond"
+
+
+def _build_stress_timeline(hb_df, sessions_df=None) -> go.Figure:
     """
-    SVG 24-hour clock with:
-    - Full stress-gradient ring (heat map per hour, hover shows stress at that hour)
-    - Golden-hour (green) and peak-stress (orange) highlight arcs
-    - Per-session dots on the outer ring (clickable, coloured by playlist)
-    - Clock face labels: 12 (midnight/top), 3 (6h/right), 6 (noon/bottom), 9 (18h/left)
-
-    sessions: list of (hour, playlist, mood_delta, date, pre_stress, mood_before) tuples
-    active_arc: 'golden' | 'peak' | None — highlights the clicked arc
+    24-hour stress timeline: per-hour coloured bars (green→red) with ±1σ envelope,
+    night/dawn/dusk shading with band labels, daily-mean reference line, and
+    golden/peak annotations. Y-axis starts near the data minimum so the arc is
+    visually apparent. Session dots float above bars with rich hover.
     """
-    cx = cy = 180
-    size = 360
-    r_outer, r_inner = 148, 118       # main arc band
-    r_dot = 158                        # session dot radius
-    r_tick_out, r_tick_in = 153, 143   # tick marks
-    r_label = 170                      # clock face number radius
+    if hb_df is None or hb_df.empty:
+        return empty_figure("Geen circadiane basislijn beschikbaar voor deze deelnemer")
 
-    parts: list[str] = []
+    hours = hb_df["hour"].values
+    mean  = hb_df["mean_stress"].values
+    std   = hb_df["std_stress"].values
 
-    # ── Background track ring ────────────────────────────────────────────────
-    parts.append(
-        f'<circle cx="{cx}" cy="{cy}" r="{(r_outer+r_inner)//2}" fill="none" '
-        f'stroke="rgba(28,21,18,0.08)" stroke-width="{r_outer-r_inner}"/>'
+    # Derive golden / peak from waking hours for in-chart annotations
+    waking      = hb_df[hb_df["hour"].between(6, 23)]
+    if waking.empty:
+        waking = hb_df
+    golden_h    = int(waking.loc[waking["mean_stress"].idxmin(), "hour"])
+    peak_h      = int(waking.loc[waking["mean_stress"].idxmax(), "hour"])
+    golden_mean = float(waking.loc[waking["mean_stress"].idxmin(), "mean_stress"])
+    peak_mean   = float(waking.loc[waking["mean_stress"].idxmax(), "mean_stress"])
+    peak_std    = float(hb_df.loc[hb_df["hour"] == peak_h, "std_stress"].iloc[0])
+    daily_mean  = float(mean.mean())
+
+    mn, mx = float(mean.min()), float(mean.max())
+    colour_rng = mx - mn if mx > mn else 1.0
+    bar_colors = [_stress_color((float(s) - mn) / colour_rng, alpha=0.85) for s in mean]
+
+    # Y-axis: start near the data minimum so the arc is visually legible
+    y_min = max(0.0, mn - max(5.0, (mx - mn) * 0.5))
+    y_max = mx + max(8.0, (mx - mn) * 0.8)   # room for annotations
+
+    fig = go.Figure()
+
+    # ── Time-of-day shading bands ────────────────────────────────────────────
+    for x0, x1 in [(0, 6), (22, 24)]:
+        fig.add_vrect(x0=x0 - 0.5, x1=x1 - 0.5,
+                      fillcolor="rgba(30,41,59,0.12)", line_width=0, layer="below")
+    fig.add_vrect(x0=5.5, x1=8.5,
+                  fillcolor="rgba(251,191,36,0.08)", line_width=0, layer="below")
+    fig.add_vrect(x0=17.5, x1=21.5,
+                  fillcolor="rgba(124,58,237,0.07)", line_width=0, layer="below")
+
+    # ── Band labels (inside shading, paper-relative y so they sit at the bottom) ──
+    _band_labels = [
+        (2.5,  "nacht",    "rgba(50,70,120,0.40)"),
+        (7.0,  "ochtend",  "rgba(180,120,20,0.40)"),
+        (13.0, "middag",   "rgba(100,100,100,0.28)"),
+        (19.5, "avond",    "rgba(90,50,160,0.38)"),
+        (23.0, "nacht",    "rgba(50,70,120,0.40)"),
+    ]
+    for bx, blabel, bcolor in _band_labels:
+        fig.add_annotation(
+            x=bx, y=0.04, yref="paper",
+            text=blabel, showarrow=False,
+            font=dict(size=9, color=bcolor, family="Figtree,sans-serif"),
+            xanchor="center", yanchor="bottom",
+        )
+
+    # ── Daily mean reference line ────────────────────────────────────────────
+    fig.add_hline(
+        y=daily_mean,
+        line_color="rgba(120,120,120,0.40)",
+        line_dash="dash",
+        line_width=1.5,
+        annotation_text=f"daggemiddelde  {daily_mean:.0f} pt",
+        annotation_position="top left",
+        annotation_font_size=10,
+        annotation_font_color="rgba(100,100,100,0.65)",
     )
 
-    # ── Stress gradient ring (one arc per hour) ──────────────────────────────
-    stress_vals: dict[int, float] = {}
-    if hb_df is not None and not hb_df.empty and "mean_stress" in hb_df.columns:
-        for _, row in hb_df.iterrows():
-            stress_vals[int(row["hour"])] = float(row["mean_stress"])
-        if stress_vals:
-            mn = min(stress_vals.values())
-            mx = max(stress_vals.values())
-            rng = mx - mn if mx > mn else 1.0
-            for h in range(24):
-                if h not in stress_vals:
-                    continue
-                norm = (stress_vals[h] - mn) / rng
-                col  = _stress_color(norm, alpha=0.55)
-                p    = _arc_path(h, h + 1, r_outer, r_inner, cx, cy)
-                parts.append(f'<path d="{p}" fill="{col}"/>')
+    # ── Per-hour coloured bars with rich hover ───────────────────────────────
+    vs_mean = mean - daily_mean
+    bar_custom = list(zip(
+        std,
+        [_tod_label(h) for h in hours],
+        vs_mean,
+        mean - std,
+        mean + std,
+    ))
+    fig.add_trace(go.Bar(
+        x=hours,
+        y=mean,
+        marker_color=bar_colors,
+        marker_line_width=0,
+        width=0.85,
+        name="Gem. stress per uur",
+        customdata=bar_custom,
+        hovertemplate=(
+            "<b>%{x:02d}:00</b>  ·  %{customdata[1]}<br>"
+            "Gem. stress: <b>%{y:.1f} pt</b><br>"
+            "Normaal bereik: %{customdata[3]:.0f}–%{customdata[4]:.0f} pt  (±1σ)<br>"
+            "vs. daggemiddelde: <b>%{customdata[2]:+.1f} pt</b>"
+            "<extra></extra>"
+        ),
+        showlegend=False,
+    ))
 
-    # ── Golden hour arc (1 h, bright green) ─────────────────────────────────
-    green_path   = _arc_path(golden_hour, golden_hour + 1, r_outer, r_inner, cx, cy)
-    green_glow   = "filter:drop-shadow(0 0 6px #15803D);" if active_arc == "golden" else ""
-    green_stroke = f'stroke="#4ade80" stroke-width="2"' if active_arc == "golden" else ""
-    parts.append(
-        f'<path d="{green_path}" fill="#15803D" opacity="0.95" '
-        f'style="cursor:pointer;{green_glow}" {green_stroke} '
-        f'onclick="Shiny.setInputValue(\'circadian-clock_click\',\'golden\',{{priority:\'event\'}})"/>'
+    # ── ±1σ envelope ────────────────────────────────────────────────────────
+    fig.add_trace(go.Scatter(
+        x=np.concatenate([hours, hours[::-1]]),
+        y=np.concatenate([mean + std, (mean - std)[::-1]]),
+        fill="toself",
+        fillcolor="rgba(255,255,255,0.20)",
+        line=dict(color="rgba(160,160,160,0.35)", width=1.2),
+        showlegend=False,
+        hoverinfo="skip",
+    ))
+
+    # ── Golden hour and peak stress annotations ──────────────────────────────
+    # kalmst: if at edge hours (>20), offset label left so it stays in frame
+    kalmst_ax = -52 if golden_h >= 20 else 0
+    fig.add_annotation(
+        x=golden_h, y=golden_mean,
+        text="🟢 kalmst",
+        showarrow=True, arrowhead=2, arrowcolor="#15803D",
+        ax=kalmst_ax, ay=-32,
+        font=dict(size=10, color="#15803D"),
+        bgcolor="rgba(255,255,255,0.80)", borderpad=3,
+        xanchor="right" if golden_h >= 20 else "center",
+    )
+    fig.add_annotation(
+        x=peak_h, y=peak_mean,
+        text="⚠ piek",
+        showarrow=True, arrowhead=2, arrowcolor="#D4850A",
+        ax=0, ay=-32,
+        font=dict(size=10, color="#D4850A"),
+        bgcolor="rgba(255,255,255,0.80)", borderpad=3,
+        xanchor="center",
     )
 
-    # ── Peak stress arc (2 h, orange) ────────────────────────────────────────
-    orange_path   = _arc_path(peak_hour, peak_hour + 2, r_outer, r_inner, cx, cy)
-    orange_glow   = "filter:drop-shadow(0 0 6px #E69F00);" if active_arc == "peak" else ""
-    orange_stroke = f'stroke="#fbbf24" stroke-width="2"' if active_arc == "peak" else ""
-    parts.append(
-        f'<path d="{orange_path}" fill="#E69F00" opacity="0.90" '
-        f'style="cursor:pointer;{orange_glow}" {orange_stroke} '
-        f'onclick="Shiny.setInputValue(\'circadian-clock_click\',\'peak\',{{priority:\'event\'}})"/>'
-    )
-
-    # ── Invisible hover overlays for each hour → update centre text ──────────
-    if stress_vals:
-        for h in range(24):
-            if h not in stress_vals:
+    # ── Session overlay dots ─────────────────────────────────────────────────
+    if sessions_df is not None and not sessions_df.empty and "hour_of_day" in sessions_df.columns:
+        import pandas as pd
+        _NL = {"Calm": "Kalm", "Neutral": "Neutraal", "Energy": "Energiek"}
+        rng_jitter = np.random.default_rng(seed=42)
+        for playlist, color in PLAYLIST_COLORS.items():
+            mask = sessions_df["playlist"].str.strip().str.capitalize() == playlist
+            sub  = sessions_df[mask]
+            if sub.empty:
                 continue
-            sv   = stress_vals[h]
-            p_hit = _arc_path(h, h + 1, r_outer, r_inner, cx, cy)
-            t_str = f"{h:02d}:00"
-            parts.append(
-                f'<path d="{p_hit}" fill="transparent" style="cursor:default;" '
-                f'onmouseover="'
-                f'document.getElementById(\'mt-circ-t\').textContent=\'{t_str}\';'
-                f'document.getElementById(\'mt-circ-s\').textContent=\'{sv:.0f} pt\';'
-                f'document.getElementById(\'mt-circ-t\').style.fontSize=\'13px\';'
-                f'" '
-                f'onmouseout="'
-                f'document.getElementById(\'mt-circ-t\').textContent=\'24-uurs\';'
-                f'document.getElementById(\'mt-circ-s\').textContent=\'stressritme\';'
-                f'document.getElementById(\'mt-circ-t\').style.fontSize=\'11px\';'
-                f'"/>'
-            )
+            jitter = rng_jitter.uniform(-0.20, 0.20, len(sub))
+            nl = _NL.get(playlist, playlist)
+            delta_col = pd.to_numeric(
+                sub.get("mood_delta", pd.Series(dtype=float)), errors="coerce"
+            ) if "mood_delta" in sub.columns else pd.Series([float("nan")] * len(sub), index=sub.index)
+            delta_strs = [
+                f"+{d:.1f} pt" if d >= 0 else f"{d:.1f} pt" if not pd.isna(d) else "—"
+                for d in delta_col
+            ]
+            mood_labels = sub["mood_before"].fillna("—").astype(str).tolist() if "mood_before" in sub.columns else ["—"] * len(sub)
+            fig.add_trace(go.Scatter(
+                x=sub["hour_of_day"].values + jitter,
+                y=sub["pre_stress_mean"],
+                mode="markers",
+                marker=dict(color=color, size=9, line=dict(color="white", width=1.5)),
+                name=f"{nl}-sessie",
+                customdata=list(zip(
+                    sub["hour_of_day"].values,
+                    sub["date"].astype(str).str[:10] if "date" in sub.columns else ["—"] * len(sub),
+                    delta_strs,
+                    mood_labels,
+                )),
+                hovertemplate=(
+                    f"<b>{nl}-sessie</b><br>"
+                    "Datum: %{customdata[1]}<br>"
+                    "%{customdata[0]:.0f}:00 · Pre-stress: %{y:.1f} pt<br>"
+                    "Stemming voor: %{customdata[3]}<br>"
+                    "Stemmingsdelta: %{customdata[2]}"
+                    "<extra></extra>"
+                ),
+                showlegend=True,
+            ))
 
-    # ── Session dots (playlist colour, filled=positive delta, hollow=negative) ─
-    _PL_COLS = {"Calm": "#56B4E9", "Neutral": "#009E73", "Energy": "#E69F00"}
-    _PL_NL   = {"Calm": "Kalm", "Neutral": "Neutraal", "Energy": "Energiek"}
-    if sessions:
-        for sess in sessions:
-            # Accepts (hour, playlist, mood_delta) or extended tuples/dicts
-            hour, playlist, mood_delta = sess[0], sess[1], sess[2]
-            date      = sess[3] if len(sess) > 3 else ""
-            pre_stress = sess[4] if len(sess) > 4 else 0.0
-            mood_before = sess[5] if len(sess) > 5 else ""
+    fig.update_layout(**chart_layout(
+        xaxis=dict(
+            tickvals=list(range(0, 24, 3)),
+            ticktext=[f"{h:02d}:00" for h in range(0, 24, 3)],
+            range=[-0.5, 23.5],
+            gridcolor=GRID_COLOR,
+        ),
+        yaxis=dict(title="Stress", gridcolor=GRID_COLOR, range=[y_min, y_max]),
+        height=290,
+        bargap=0.05,
+        legend=dict(orientation="h", y=-0.26, font_size=11),
+        margin=dict(t=68, b=40, l=44, r=16),
+    ))
 
-            angle   = (float(hour) / 24) * 2 * math.pi - math.pi / 2
-            dx      = cx + r_dot * math.cos(angle)
-            dy      = cy + r_dot * math.sin(angle)
-            col     = _PL_COLS.get(str(playlist).capitalize(), "#86efac")
-            pl_nl   = _PL_NL.get(str(playlist).capitalize(), playlist)
-            positive = mood_delta is not None and float(mood_delta) > 0
-            fill    = col if positive else "none"
-            tip     = f"{int(float(hour)):02d}:00 · {pl_nl} · delta {mood_delta:+.1f}pt" if mood_delta is not None else f"{int(float(hour)):02d}:00 · {pl_nl}"
-
-            # Encode click payload as JS object literal (safe for SVG attributes)
-            md_js  = f"{mood_delta}" if mood_delta is not None else "null"
-            ps_js  = f"{float(pre_stress):.1f}"
-            mb_js  = str(mood_before).replace("'", "").replace('"', "")
-            dt_js  = str(date)[:10]
-            pl_js  = str(playlist).replace("'", "")
-            onclick = (
-                f"Shiny.setInputValue('circadian-clock_dot_click',"
-                f"{{date:'{dt_js}',hour:{int(float(hour))},playlist:'{pl_js}',"
-                f"mood_delta:{md_js},pre_stress:{ps_js},mood_before:'{mb_js}'}},"
-                f"{{priority:'event'}})"
-            )
-            parts.append(
-                f'<circle cx="{dx:.1f}" cy="{dy:.1f}" r="6" '
-                f'fill="{fill}" stroke="{col}" stroke-width="2.5" opacity="0.9" '
-                f'style="cursor:pointer;transition:r 0.1s;" '
-                f'onmouseover="this.setAttribute(\'r\',\'9\');this.style.opacity=\'1\';" '
-                f'onmouseout="this.setAttribute(\'r\',\'6\');this.style.opacity=\'0.9\';" '
-                f'onclick="{onclick}">'
-                f'<title>{tip}</title>'
-                f'</circle>'
-            )
-
-    # ── Major tick marks every 6 h ───────────────────────────────────────────
-    for h in range(0, 24, 6):
-        angle = (h / 24) * 2 * math.pi - math.pi / 2
-        xo = cx + r_tick_out * math.cos(angle)
-        yo = cy + r_tick_out * math.sin(angle)
-        xi = cx + r_tick_in  * math.cos(angle)
-        yi = cy + r_tick_in  * math.sin(angle)
-        parts.append(
-            f'<line x1="{xi:.1f}" y1="{yi:.1f}" x2="{xo:.1f}" y2="{yo:.1f}" '
-            f'stroke="rgba(28,21,18,0.30)" stroke-width="2.5" stroke-linecap="round"/>'
-        )
-
-    # ── Minor tick marks every 3 h (smaller) ────────────────────────────────
-    for h in range(3, 24, 6):
-        angle = (h / 24) * 2 * math.pi - math.pi / 2
-        xo = cx + (r_tick_out - 2) * math.cos(angle)
-        yo = cy + (r_tick_out - 2) * math.sin(angle)
-        xi = cx + (r_tick_in  + 2) * math.cos(angle)
-        yi = cy + (r_tick_in  + 2) * math.sin(angle)
-        parts.append(
-            f'<line x1="{xi:.1f}" y1="{yi:.1f}" x2="{xo:.1f}" y2="{yo:.1f}" '
-            f'stroke="rgba(28,21,18,0.15)" stroke-width="1.5" stroke-linecap="round"/>'
-        )
-
-    # ── Hourly tick marks (every hour, thin) ────────────────────────────────
-    for h in range(24):
-        if h % 3 == 0:
-            continue   # already drawn by the major/minor tick pass above
-        angle = (h / 24) * 2 * math.pi - math.pi / 2
-        xo = cx + (r_tick_out - 3) * math.cos(angle)
-        yo = cy + (r_tick_out - 3) * math.sin(angle)
-        xi = cx + (r_tick_in  + 3) * math.cos(angle)
-        yi = cy + (r_tick_in  + 3) * math.sin(angle)
-        parts.append(
-            f'<line x1="{xi:.1f}" y1="{yi:.1f}" x2="{xo:.1f}" y2="{yo:.1f}" '
-            f'stroke="rgba(28,21,18,0.10)" stroke-width="1" stroke-linecap="round"/>'
-        )
-
-    # ── Clock face numbers — true 24h positions (00/06/12/18) ────────────────
-    face_labels = {
-        0:  ("00", "midnight"),
-        6:  ("06", "06:00"),
-        12: ("12", "middag"),
-        18: ("18", "18:00"),
-    }
-    for h, (big_lbl, sub_lbl) in face_labels.items():
-        angle = (h / 24) * 2 * math.pi - math.pi / 2
-        lx = cx + r_label * math.cos(angle)
-        ly = cy + r_label * math.sin(angle)
-        parts.append(
-            f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle" dominant-baseline="middle" '
-            f'font-size="15" font-weight="700" font-family="Figtree,sans-serif" '
-            f'fill="rgba(28,21,18,0.70)">{big_lbl}</text>'
-        )
-        # Small sub-label slightly offset toward edge
-        slx = cx + (r_label + 14) * math.cos(angle)
-        sly = cy + (r_label + 14) * math.sin(angle)
-        parts.append(
-            f'<text x="{slx:.1f}" y="{sly:.1f}" text-anchor="middle" dominant-baseline="middle" '
-            f'font-size="9" font-family="Figtree,sans-serif" '
-            f'fill="rgba(28,21,18,0.35)">{sub_lbl}</text>'
-        )
-
-    # ── Centre: participant-facing summary (IDs let hover JS update the text) ──
-    parts.append(
-        f'<text id="mt-circ-t" x="{cx}" y="{cy - 14}" text-anchor="middle" '
-        f'dominant-baseline="middle" font-size="11" font-family="DM Sans,sans-serif" '
-        f'fill="rgba(255,255,255,0.28)" style="pointer-events:none;transition:font-size 0.1s;">24-uurs</text>'
-        f'<text id="mt-circ-s" x="{cx}" y="{cy + 4}" text-anchor="middle" '
-        f'dominant-baseline="middle" font-size="11" font-family="DM Sans,sans-serif" '
-        f'fill="rgba(255,255,255,0.20)" style="pointer-events:none;">stressritme</text>'
-    )
-
-    rendered = int(size * 1.3)   # scale up visually while keeping all coordinate math intact
-    return (
-        f'<svg width="{rendered}" height="{rendered}" viewBox="0 0 {size} {size}" '
-        f'xmlns="http://www.w3.org/2000/svg" style="display:block; overflow:visible; max-width:100%;">'
-        + "".join(parts)
-        + "</svg>"
-    )
+    return fig
 
 
 def _build_circadian_chart(hb_df, session_df) -> go.Figure:
@@ -459,7 +421,7 @@ def ui():
             style="padding:0 var(--page-margin);",
         ),
 
-        # 24-uur klok
+        # 24-uur tijdlijn + statistieken
         _ui.div(
             _ui.output_ui("clock_hero_ui"),
             style="padding:24px var(--page-margin) 8px;",
@@ -478,7 +440,6 @@ def ui():
 def server(input, output, session, app_data: AppData, selected_participant=None):
     selected     = selected_participant if selected_participant is not None else reactive.Value("bosbes")
     selected_dot: reactive.Value[dict | None] = reactive.Value(None)
-    clock_click  = reactive.Value(None)
 
     @reactive.Calc
     def current_data():
@@ -506,38 +467,11 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
     def _clear_dot_on_participant_change():
         selected()
         selected_dot.set(None)
-        clock_click.set(None)
 
     @reactive.Effect
     @reactive.event(input.circadian_clear_dot)
     def _on_clear_dot():
         selected_dot.set(None)
-
-    @reactive.Effect
-    @reactive.event(input.clock_click)
-    def _on_clock_click():
-        cc = input.clock_click()
-        # Toggle: clicking the same arc again clears the highlight
-        clock_click.set(None if clock_click() == cc else cc)
-
-    @reactive.Effect
-    @reactive.event(input.clock_dot_click)
-    def _on_clock_dot_click():
-        cd = input.clock_dot_click()
-        if not cd:
-            selected_dot.set(None)
-            return
-        md = cd.get("mood_delta")
-        dot = {
-            "date":        str(cd.get("date", ""))[:10],
-            "hour":        int(float(cd.get("hour", 0))),
-            "delta":       f"{float(md):+.1f} pt" if md is not None else "—",
-            "mood_before": str(cd.get("mood_before", "—")),
-            "post_stress": "—",
-            "playlist":    str(cd.get("playlist", "")),
-            "pre_stress":  float(cd.get("pre_stress") or 0),
-        }
-        selected_dot.set(None if selected_dot() == dot else dot)
 
     @output
     @render.text
@@ -577,6 +511,14 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
         return fw
 
     @output
+    @render_widget
+    def stress_timeline():
+        hb, sf = current_data()
+        if hb is None or (hasattr(hb, "empty") and hb.empty):
+            return empty_figure(f"Geen data beschikbaar voor {selected()}")
+        return _build_stress_timeline(hb, sf if not sf.empty else None)
+
+    @output
     @render.ui
     def clock_hero_ui():
         import pandas as pd
@@ -592,7 +534,6 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
         golden_stress = float(waking.loc[waking["mean_stress"].idxmin(), "mean_stress"])
         peak_stress   = float(waking.loc[waking["mean_stress"].idxmax(), "mean_stress"])
 
-        # Average pre-session circadian deviation
         dev_val = None
         dev_str = "—"
         if not sf.empty and "baseline_deviation_entry" in sf.columns:
@@ -601,132 +542,70 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
                 dev_val = dev
                 dev_str = f"+{dev:.1f} pt" if dev >= 0 else f"{dev:.1f} pt"
 
-        # Build session dot list — 6-tuples for full click detail
-        sessions = []
-        if not sf.empty and "hour_of_day" in sf.columns and "playlist" in sf.columns:
-            for _, row in sf.iterrows():
-                h  = row.get("hour_of_day")
-                pl = row.get("playlist", "")
-                md = row.get("mood_delta")
-                dt = str(row.get("date", ""))[:10]
-                ps = row.get("pre_stress_mean", 0.0)
-                mb = str(row.get("mood_before", "—"))
-                if h is not None:
-                    try:
-                        md_f = float(md) if md is not None and str(md) not in ("", "nan") else None
-                    except (TypeError, ValueError):
-                        md_f = None
-                    try:
-                        ps_f = float(ps) if ps is not None and str(ps) not in ("", "nan") else 0.0
-                    except (TypeError, ValueError):
-                        ps_f = 0.0
-                    sessions.append((float(h), str(pl).capitalize(), md_f, dt, ps_f, mb))
+        dev_color = "#22c55e" if (dev_val is not None and dev_val < -2) else \
+                    "#ef4444" if (dev_val is not None and dev_val > 2) else "var(--text-primary)"
 
-        svg = _circadian_clock_svg(
-            golden_h, peak_h, golden_stress, peak_stress,
-            hb_df=hb, sessions=sessions,
-            active_arc=clock_click(),
+        diff = peak_stress - golden_stress
+        def _hour_period(h: int) -> str:
+            if h < 6:  return "'s nachts"
+            if h < 12: return "'s ochtends"
+            if h < 18: return "'s middags"
+            return "'s avonds"
+        insight = (
+            f"Jouw stress is het laagst om {golden_h:02d}:00 ({golden_stress:.0f} pt, "
+            f"{_hour_period(golden_h)}) en piekt rond {peak_h:02d}:00 ({peak_stress:.0f} pt, "
+            f"{_hour_period(peak_h)}). Dat verschil van {diff:.0f} pt is jouw dagritme."
         )
 
-        # Session dot legend
-        pl_dots = []
-        seen = set()
-        for sess in sessions:
-            _, pl, md = sess[0], sess[1], sess[2]
-            key = (pl, md is not None and md > 0)
-            if key not in seen:
-                seen.add(key)
-                col = {"Calm": "#0EA5E9", "Neutral": "#10B981", "Energy": "#F59E0B"}.get(pl, "#86efac")
-                nl  = {"Calm": "Kalm", "Neutral": "Neutraal", "Energy": "Energiek"}.get(pl, pl)
-                fill_style = f"background:{col};" if (md is not None and md > 0) else f"background:none;border:2px solid {col};"
-                pl_dots.append(_ui.span(
-                    _ui.HTML(f'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;{fill_style}margin-right:4px;vertical-align:middle;"></span>'),
-                    nl + (" ↑" if (md is not None and md > 0) else " ↓/—"),
-                    style="font-size:0.75rem; color:var(--text-tertiary); margin-right:12px; white-space:nowrap;",
-                ))
-
-        legend = _ui.div(
-            *pl_dots,
-            _ui.span("Gevuld = positieve stemmingsdelta",
-                     style="font-size:0.7rem; color:var(--text-tertiary); opacity:0.7;"),
-            style="display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:12px;",
-        ) if pl_dots else _ui.div()
-
-        # ── Right panel: always-visible info ─────────────────────────────────
-        def _info_block(dot_color, label, time_str, stress_val, explanation, border_color):
+        # Below-chart row: title+insight (flex:2) + KPI blocks (flex:1 each)
+        def _kpi(dot_color, label, time_str, stress_val):
             return _ui.div(
                 _ui.div(
                     _ui.HTML(
-                        f'<span style="display:inline-block;width:8px;height:8px;'
-                        f'border-radius:50%;background:{dot_color};margin-right:6px;'
-                        f'vertical-align:middle;flex-shrink:0;"></span>'
+                        f'<span style="display:inline-block;width:7px;height:7px;'
+                        f'border-radius:50%;background:{dot_color};margin-right:5px;'
+                        f'vertical-align:middle;"></span>'
                     ),
-                    _ui.span(label, style="font-size:0.6875rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-tertiary);"),
-                    style="display:flex; align-items:center; margin-bottom:6px;",
+                    _ui.span(label, style="font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-tertiary);"),
+                    style="display:flex; align-items:center; margin-bottom:4px;",
                 ),
-                _ui.div(time_str, style="font-size:1.5rem; font-weight:700; font-family:'Figtree',sans-serif; line-height:1; margin-bottom:4px;"),
-                _ui.div(f"{stress_val:.0f} gem. stresspunten", style="font-size:0.8125rem; color:var(--text-secondary); margin:0;"),
+                _ui.div(time_str, style="font-size:1.25rem; font-weight:700; font-family:'Figtree',sans-serif; line-height:1.1; margin-bottom:2px;"),
+                _ui.div(f"{stress_val:.0f} gem. pt", style="font-size:0.8rem; color:var(--text-secondary);"),
                 style=(
-                    f"padding:14px 16px; border-radius:calc(var(--radius-card) - 4px); "
+                    f"flex:1; min-width:120px; padding:12px 14px; "
+                    f"border-radius:calc(var(--radius-card) - 4px); "
                     f"background:var(--bg-elevated); border-left:3px solid {dot_color};"
                 ),
             )
 
-        golden_explanation = (
-            f"Jouw stressniveau is hier het laagst van de dag. Ideaal voor ontspanning, "
-            f"een kalme afspeellijst, of herstel. Gekleurde stippen op de klok tonen "
-            f"wanneer je daadwerkelijk sessies had."
-        )
-        peak_explanation = (
-            f"Jouw stress piek typisch hier. Een energieke afspeellijst sluit aan op "
-            f"je verhoogde arousal — of een kalme lijst helpt af te schakelen."
-        )
-
-        dev_color  = "#22c55e" if (dev_val is not None and dev_val < -2) else \
-                     "#ef4444" if (dev_val is not None and dev_val > 2) else "var(--text-primary)"
-        dev_explanation = (
-            "Gemiddeld verschil tussen jouw stress bij aanvang van een sessie "
-            "en jouw eigen basislijn op dat uur. Positief = je zat gespannener dan normaal."
-        )
-
-        right_panel = _ui.div(
-            _ui.div("Jouw 24-uurs stressritme", class_="mt-h2", style="margin-bottom:4px;"),
-            _ui.p(
-                "De ring toont jouw stressverloop over 24 uur: groen = laag, rood = hoog. "
-                "Gekleurde stippen zijn jouw luistersessies.",
-                style="font-size:0.8125rem; color:var(--text-tertiary); margin-bottom:24px; line-height:1.5;",
-            ),
-            _info_block("#15803D", "Gouden uur",
-                        f"{golden_h:02d}:00", golden_stress,
-                        golden_explanation, "#15803D"),
-            _ui.div(style="height:12px;"),
-            _info_block("#D4850A", "Piekstress",
-                        f"{peak_h:02d}–{peak_h+2:02d}:00", peak_stress,
-                        peak_explanation, "#D4850A"),
-            _ui.div(style="height:12px;"),
+        below_row = _ui.div(
+            # Title + insight text
             _ui.div(
-                _ui.div("Pre-sessie afwijking", style="font-size:0.6875rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-tertiary); margin-bottom:4px;"),
-                _ui.div(dev_str, style=f"font-size:1.5rem; font-weight:700; font-family:'Figtree',sans-serif; color:{dev_color}; line-height:1;"),
-                style="padding:14px 16px; border-radius:calc(var(--radius-card) - 4px); background:var(--bg-elevated); border-left:3px solid var(--border-strong);",
+                _ui.div("Jouw 24-uurs stressritme", class_="mt-h2", style="margin-bottom:6px;"),
+                _ui.p(insight, style="font-size:0.8125rem; color:var(--text-tertiary); line-height:1.6; margin:0;"),
+                style="flex:2; min-width:200px;",
             ),
-            style="display:flex; flex-direction:column; justify-content:flex-start;",
+            _kpi("#15803D", "Gouden uur", f"{golden_h:02d}:00", golden_stress),
+            _kpi("#D4850A", "Piekstress", f"{peak_h:02d}–{peak_h+2:02d}:00", peak_stress),
+            _ui.div(
+                _ui.div(
+                    _ui.span("Pre-sessie afwijking", style="font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-tertiary);"),
+                    style="margin-bottom:4px;",
+                ),
+                _ui.div(dev_str, style=f"font-size:1.25rem; font-weight:700; font-family:'Figtree',sans-serif; color:{dev_color}; line-height:1.1;"),
+                _ui.div("gem. afwijking bij sessies", style="font-size:0.8rem; color:var(--text-secondary);"),
+                style=(
+                    "flex:1; min-width:120px; padding:12px 14px; "
+                    "border-radius:calc(var(--radius-card) - 4px); "
+                    "background:var(--bg-elevated); border-left:3px solid var(--border-strong);"
+                ),
+            ),
+            style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; margin-top:20px;",
         )
 
         return _ui.div(
-            _ui.div(
-                # Left: clock + legend
-                _ui.div(
-                    _ui.HTML(svg),
-                    legend,
-                    style="display:flex; flex-direction:column; align-items:center;",
-                ),
-                # Right: key stats — compact, no verbose explanations
-                right_panel,
-                style=(
-                    "display:grid; grid-template-columns:480px 1fr; "
-                    "gap:32px; align-items:start;"
-                ),
-            ),
+            output_widget("stress_timeline"),
+            below_row,
             class_="mt-section-card",
             style="padding:28px 40px;",
         )
@@ -777,7 +656,6 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
             mood_label_na   = str(row.get("mood_after",  "—")) if hasattr(row, "get") else "—"
             pre_stress      = _safe(row, "pre_stress_mean")
             post_stress     = _safe(row, "post_stress_mean")
-            # Use valence-aware improvement: lower score is better for negative emotions
             improved = mood_is_improvement(
                 mood_label_voor, row.get("mood_before_score"),
                 mood_label_na,   row.get("mood_after_score"),
@@ -794,14 +672,12 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
             mood_label_na   = "—"
             pre_stress      = f"{dot['pre_stress']:.1f}"
             post_stress     = dot.get("post_stress", "—")
-            # Fallback: no mood labels — use raw sign
             delta_color = (
                 "#22c55e" if delta_val is not None and delta_val > 0
                 else "#ef4444" if delta_val is not None and delta_val < 0
                 else "var(--text-tertiary)"
             )
 
-        # 1.2 Compute circadian deviation for this session
         hour           = dot.get("hour", 17)
         pre_stress_val = dot.get("pre_stress")
         deviation_str  = "—"
@@ -814,7 +690,6 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
                 deviation_str = f"{sign}{dev:.1f} pt"
                 dev_color  = "#ef4444" if dev > 5 else ("#22c55e" if dev < -5 else "var(--text-tertiary)")
 
-        # Comparison to participant's average for this playlist type
         comparison_str = "—"
         pl_key = playlist_nl.strip()
         if not sf.empty and "playlist" in sf.columns and "pre_stress_mean" in sf.columns:
