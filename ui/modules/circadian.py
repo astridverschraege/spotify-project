@@ -45,6 +45,10 @@ def _build_stress_timeline(hb_df, sessions_df=None) -> go.Figure:
     if hb_df is None or hb_df.empty:
         return empty_figure("Geen circadiane basislijn beschikbaar voor deze deelnemer")
 
+    hb_df = hb_df.dropna(subset=["mean_stress"])
+    if hb_df.empty:
+        return empty_figure("Geen circadiane basislijn beschikbaar voor deze deelnemer")
+
     hours = hb_df["hour"].values
     mean  = hb_df["mean_stress"].values
     std   = hb_df["std_stress"].values
@@ -58,11 +62,16 @@ def _build_stress_timeline(hb_df, sessions_df=None) -> go.Figure:
     golden_mean = float(waking.loc[waking["mean_stress"].idxmin(), "mean_stress"])
     peak_mean   = float(waking.loc[waking["mean_stress"].idxmax(), "mean_stress"])
     peak_std    = float(hb_df.loc[hb_df["hour"] == peak_h, "std_stress"].iloc[0])
-    daily_mean  = float(mean.mean())
+    daily_mean  = float(np.nanmean(mean))
 
-    mn, mx = float(mean.min()), float(mean.max())
+    mn = float(np.nanmin(mean))
+    mx = float(np.nanmax(mean))
     colour_rng = mx - mn if mx > mn else 1.0
-    bar_colors = [_stress_color((float(s) - mn) / colour_rng, alpha=0.85) for s in mean]
+    bar_colors = [
+        _stress_color((float(s) - mn) / colour_rng, alpha=0.85) if not np.isnan(s)
+        else "rgba(80,80,80,0.25)"
+        for s in mean
+    ]
 
     # Y-axis: start near the data minimum so the arc is visually legible
     y_min = max(0.0, mn - max(5.0, (mx - mn) * 0.5))
@@ -175,6 +184,8 @@ def _build_stress_timeline(hb_df, sessions_df=None) -> go.Figure:
         for playlist, color in PLAYLIST_COLORS.items():
             mask = sessions_df["playlist"].str.strip().str.capitalize() == playlist
             sub  = sessions_df[mask]
+            if "pre_stress_mean" in sub.columns:
+                sub = sub.dropna(subset=["pre_stress_mean"])
             if sub.empty:
                 continue
             jitter = rng_jitter.uniform(-0.20, 0.20, len(sub))
@@ -189,7 +200,7 @@ def _build_stress_timeline(hb_df, sessions_df=None) -> go.Figure:
             mood_labels = sub["mood_before"].fillna("—").astype(str).tolist() if "mood_before" in sub.columns else ["—"] * len(sub)
             fig.add_trace(go.Scatter(
                 x=sub["hour_of_day"].values + jitter,
-                y=sub["pre_stress_mean"],
+                y=sub["pre_stress_mean"].tolist(),
                 mode="markers",
                 marker=dict(color=color, size=9, line=dict(color="white", width=1.5)),
                 name=f"{nl}-sessie",
@@ -231,6 +242,10 @@ def _build_circadian_chart(hb_df, session_df) -> go.Figure:
     if hb_df is None or hb_df.empty:
         return empty_figure("Geen circadiane basislijn beschikbaar voor deze deelnemer")
 
+    hb_df = hb_df.dropna(subset=["mean_stress"])
+    if hb_df.empty:
+        return empty_figure("Geen circadiane basislijn beschikbaar voor deze deelnemer")
+
     hours = hb_df["hour"].values
     mean  = hb_df["mean_stress"].values
     std   = hb_df["std_stress"].values
@@ -264,6 +279,8 @@ def _build_circadian_chart(hb_df, session_df) -> go.Figure:
         for playlist, color in PLAYLIST_COLORS.items():
             mask = session_df["playlist"].str.strip().str.capitalize() == playlist
             sub  = session_df[mask]
+            if "pre_stress_mean" in sub.columns:
+                sub = sub.dropna(subset=["pre_stress_mean"])
             if sub.empty:
                 continue
             rng    = np.random.default_rng(seed=42)
@@ -292,7 +309,7 @@ def _build_circadian_chart(hb_df, session_df) -> go.Figure:
             nl = _NL.get(playlist, playlist)
             fig.add_trace(go.Scatter(
                 x=sub["hour_of_day"].values + jitter,
-                y=sub["pre_stress_mean"],
+                y=sub["pre_stress_mean"].tolist(),
                 mode="markers",
                 marker=dict(color=color, size=10, line=dict(color="white", width=1.5)),
                 name=f"{nl}-sessie",
@@ -455,12 +472,17 @@ def server(input, output, session, app_data: AppData, selected_participant=None)
             sf = sf_raw.copy() if sf_raw is not None and not sf_raw.empty else pd.DataFrame()
         sb = app_data.session_biometrics.get(p, pd.DataFrame())
         if not sf.empty and not sb.empty and "date" in sf.columns and "date" in sb.columns:
+            sf["date"] = sf["date"].astype(str).str[:10]
+            sb = sb.copy()
+            sb["date"] = sb["date"].astype(str).str[:10]
             extra_cols = [c for c in ("mood_before", "mood_after", "post_stress_mean") if c in sb.columns]
             if extra_cols:
                 sf = sf.merge(
                     sb[["date"] + extra_cols].drop_duplicates("date"),
                     on="date", how="left", suffixes=("", "_sb"),
                 )
+        if not sf.empty and "date" in sf.columns and "playlist" in sf.columns:
+            sf = sf.drop_duplicates(subset=["date", "playlist"])
         return hb, sf
 
     @reactive.Effect
