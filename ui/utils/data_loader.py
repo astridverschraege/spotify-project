@@ -251,7 +251,11 @@ def expected_stress(app_data: AppData, participant: str, hour: int):
     row = hb[hb["hour"] == hour]
     if row.empty:
         return None, None
-    return float(row["mean_stress"].iloc[0]), float(row["std_stress"].iloc[0])
+    ms = row["mean_stress"].iloc[0]
+    ss = row["std_stress"].iloc[0]
+    if pd.isna(ms):
+        return None, None
+    return float(ms), float(ss)
 
 
 def best_playlist_for(app_data: AppData, participant: str) -> tuple[str, int]:
